@@ -2,7 +2,7 @@ import { useState } from 'react';
 import PandasPage from './pandas';
 import NumpyPage from './numphy';
 import ChartsPage from './charts';
-
+import '../DashBoard.css';
 
 export const Dashboard = () => {
   // Estado para la pestaña activa
