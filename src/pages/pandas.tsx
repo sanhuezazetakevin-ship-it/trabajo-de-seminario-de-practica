@@ -1,60 +1,66 @@
 import React, { useState, useMemo } from 'react';
 import Papa from 'papaparse';
+import './pandas.css';
 
 interface PandasProps {
   data: Record<string, any>[];
   setData: React.Dispatch<React.SetStateAction<Record<string, any>[]>>;
 }
 
-export const PandasPage = ({ data, setData }: PandasProps) => { 
-  // Estado para la paginación
+export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [rowsPerPage, setRowsPerPage] = useState<number>(100);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
-  // 1. Carga por Stream/Worker para archivos gigantes sin bloquear la UI
+  // 1. Carga por Stream/Worker
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsProcessing(true);
     setCurrentPage(1);
+    setFeedback(null);
 
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      worker: true, // Procesa en un Web Worker en segundo plano
+      worker: true,
       complete: (res) => {
-        setData(res.data as Record<string, any>[]);
+        const parsed = res.data as Record<string, any>[];
+        setData(parsed);
         setIsProcessing(false);
+        setFeedback(`Archivo "${file.name}" cargado exitosamente. ${parsed.length.toLocaleString('es-ES')} registros detectados.`);
       },
       error: () => {
-        alert('Error al leer el archivo CSV');
+        setFeedback('Error al leer el archivo CSV. Verifique el formato.');
         setIsProcessing(false);
-      }
+      },
     });
   };
 
   // 2. Limpieza optimizada
   const cleanNulls = () => {
-    setIsProcessing(true);
+    if (data.length === 0) return;
 
-    // setTimeout permite que la UI muestre el estado de "Cargando..." antes del cálculo
+    setIsProcessing(true);
+    setFeedback(null);
+
     setTimeout(() => {
       const initialCount = data.length;
-      
+
       const cleaned = data.filter((row) =>
-        Object.values(row).every((val) => 
-          val !== null && val !== undefined && val !== '' && String(val).trim() !== ''
+        Object.values(row).every(
+          (val) => val !== null && val !== undefined && val !== '' && String(val).trim() !== ''
         )
       );
 
       const removedCount = initialCount - cleaned.length;
 
       if (removedCount === 0) {
-        alert('La lista no contiene elementos nulos o vacíos.');
+        setFeedback('Verificación completada: El conjunto de datos no contiene elementos nulos o vacíos.');
       } else {
-        alert(`Se han eliminado ${removedCount} filas de ${initialCount} registros.`);
+        setFeedback(`Limpieza exitosa: Se eliminaron ${removedCount} filas con registros nulos/vacíos de un total de ${initialCount} filas.`);
         setData(cleaned);
         setCurrentPage(1);
       }
@@ -62,95 +68,134 @@ export const PandasPage = ({ data, setData }: PandasProps) => {
     }, 50);
   };
 
-  // Memoización de columnas
+  // Columnas dinámicas
   const columns = useMemo(() => {
     return data.length > 0 ? Object.keys(data[0]) : [];
   }, [data]);
 
-  // 3. Paginación: Solo se renderizan las filas visibles en pantalla (ej. 100)
-  const totalPages = Math.ceil(data.length / rowsPerPage);
-  
+  // Paginación
+  const totalPages = Math.ceil(data.length / rowsPerPage) || 1;
+
   const currentData = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
     return data.slice(start, start + rowsPerPage);
   }, [data, currentPage, rowsPerPage]);
 
   return (
-    <div className="dashboard-container">
-      <section className="dashboard-section">
-        <h3>1. Cargar Archivo CSV</h3>
-        <input 
-          type="file" 
-          accept=".csv" 
-          onChange={handleUpload} 
-          disabled={isProcessing} 
-        />
-        {isProcessing && <p>Procesando datos en segundo plano...</p>}
-      </section>
+    <div>
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 style={{ color: 'var(--text-main)', fontSize: '1.6rem', marginBottom: '0.5rem' }}>
+          Ingesta &amp; Procesamiento Pandas (CSV)
+        </h2>
+        <p style={{ color: 'var(--text-muted)' }}>
+          Carga de datos tabulares, filtrado de anomalías y exploración de datos en entorno oscuro de alta precisión.
+        </p>
+      </div>
 
-      {data.length > 0 && (
-        <section className="dashboard-section">
-          <h3>2. Limpieza de Datos</h3>
-          <button 
-            className="btn-primary" 
-            onClick={cleanNulls} 
-            disabled={isProcessing}
-          >
-            {isProcessing ? 'Limpiando...' : 'Limpiar Nulos'}
-          </button>
-        </section>
+      {/* Dropzone de Carga CSV */}
+      <div className="dropzone">
+        <input type="file" accept=".csv" onChange={handleUpload} disabled={isProcessing} />
+        <div className="dropzone-title">
+          {isProcessing ? 'Procesando archivo CSV...' : 'Haz clic o arrastra un archivo CSV aquí'}
+        </div>
+        <div className="dropzone-hint">
+          Soporta estructuras de gran volumen mediante parsing asíncrono multihilo PapaParse.
+        </div>
+      </div>
+
+      {/* Mensaje de Feedback */}
+      {feedback && (
+        <div className="alert alert-success" style={{ marginBottom: '1.5rem' }}>
+          {feedback}
+        </div>
       )}
 
+      {/* Barra de Acción y Limpieza */}
       {data.length > 0 && (
-        <section className="dashboard-section">
-          <h3>3. Datos Cargados ({data.length.toLocaleString()} filas)</h3>
-          
-          {/* Controles de Paginación */}
-          <div className="pagination-controls" style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '1rem' }}>
-            <button 
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))} 
-              disabled={currentPage === 1 || isProcessing}
-            >
-              Anterior
-            </button>
-            <span>Página {currentPage} de {totalPages}</span>
-            <button 
-              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))} 
-              disabled={currentPage === totalPages || isProcessing}
-            >
-              Siguiente
-            </button>
-            <select 
-              value={rowsPerPage} 
-              onChange={(e) => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-            >
-              <option value={50}>50 por pág.</option>
-              <option value={100}>100 por pág.</option>
-              <option value={500}>500 por pág.</option>
-            </select>
+        <div className="action-bar">
+          <div>
+            <span className="tag-label" style={{ marginBottom: 0 }}>
+              Metadata Dataset
+            </span>
+            <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '0.95rem', marginTop: '0.2rem' }}>
+              {data.length.toLocaleString('es-ES')} filas &times; {columns.length} columnas
+            </div>
           </div>
 
+          <button className="btn btn-primary" onClick={cleanNulls} disabled={isProcessing}>
+            {isProcessing ? 'Ejecutando Algoritmo...' : 'Ejecutar Limpieza de Nulos'}
+          </button>
+        </div>
+      )}
+
+      {/* Tabla Estilizada en Modo Oscuro */}
+      {data.length > 0 && (
+        <div>
+          {/* Controles de Paginación */}
+          <div className="pagination-container">
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              Mostrando página <strong style={{ color: 'var(--text-main)' }}>{currentPage}</strong> de{' '}
+              <strong style={{ color: 'var(--text-main)' }}>{totalPages}</strong>
+            </div>
+
+            <div className="pagination-controls">
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1 || isProcessing}
+              >
+                Anterior
+              </button>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages || isProcessing}
+              >
+                Siguiente
+              </button>
+              <select
+                className="form-control"
+                style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                value={rowsPerPage}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+              >
+                <option value={50}>50 por pág.</option>
+                <option value={100}>100 por pág.</option>
+                <option value={500}>500 por pág.</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Tabla de Datos */}
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
+                  <th className="row-index">#</th>
                   {columns.map((col) => (
                     <th key={col}>{col}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {currentData.map((row, i) => (
-                  <tr key={i}>
-                    {columns.map((col) => (
-                      <td key={col}>{String(row[col] ?? '')}</td>
-                    ))}
-                  </tr>
-                ))}
+                {currentData.map((row, idx) => {
+                  const absoluteRowIndex = (currentPage - 1) * rowsPerPage + idx + 1;
+                  return (
+                    <tr key={idx}>
+                      <td className="row-index">{absoluteRowIndex}</td>
+                      {columns.map((col) => (
+                        <td key={col}>{String(row[col] ?? '')}</td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
       )}
     </div>
   );

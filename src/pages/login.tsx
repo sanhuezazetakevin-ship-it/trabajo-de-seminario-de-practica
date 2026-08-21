@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import type { LoginCredentials, User } from '../types/auth';
+import './login.css';
 
 interface LoginFormProps {
   onLoginSuccess: (user: User) => void;
@@ -23,29 +24,37 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
     }
 
     // Credenciales de prueba
-    if (formData.email === 'admin@gmail' && formData.password === '123456') {
+    if (
+      (formData.email === 'admin@gmail' || formData.email === 'admin@correo.com' || formData.email.includes('@')) &&
+      formData.password === '123456'
+    ) {
       onLoginSuccess({ email: formData.email, name: 'Administrador' });
     } else {
-      setError('Credenciales incorrectas (Usa: admin@correo.com / 123456)');
+      setError('Credenciales incorrectas (Usa: admin@gmail / 123456)');
     }
   };
 
   return (
     <div className="login-container">
       <div className="login-card">
+        <span className="tag-label">Acceso Restringido</span>
         <h2 className="login-title">Iniciar Sesión</h2>
-        {error && <p className="error-message">{error}</p>}
+        <p className="login-subtitle">DataAnalytics Suite Platform</p>
+
+        {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="email">Correo Electrónico</label>
             <input
-              type="email"
+              type="text"
               id="email"
               name="email"
+              className="form-control"
               value={formData.email}
               onChange={handleChange}
               placeholder="admin@gmail"
+              required
             />
           </div>
 
@@ -55,14 +64,16 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
               type="password"
               id="password"
               name="password"
+              className="form-control"
               value={formData.password}
               onChange={handleChange}
               placeholder="123456"
+              required
             />
           </div>
 
-          <button type="submit" className="submit-btn">
-            Entrar
+          <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: '1rem' }}>
+            Ingresar al Sistema
           </button>
         </form>
       </div>

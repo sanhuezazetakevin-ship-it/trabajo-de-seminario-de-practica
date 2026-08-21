@@ -1,0 +1,26 @@
+/* ==========================================================================
+   SERVICIOS (SERVICE.CSS)
+   ========================================================================== */
+.service-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.service-info {
+  flex: 1 1 500px;
+}
+
+.service-title {
+  color: var(--text-main);
+  font-size: 1.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.service-description {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
