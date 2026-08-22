@@ -1,0 +1,18 @@
+/* ==========================================================================
+   ACERCA DE (ABOUT.CSS)
+   ========================================================================== */
+.about-tech-card {
+  height: 100%;
+}
+
+.about-developer-card {
+  border-left: 4px solid var(--primary);
+}
+
+.about-info-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+}
