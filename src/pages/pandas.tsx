@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import Papa from 'papaparse';
 import './pandas.css';
 
@@ -8,12 +8,14 @@ interface PandasProps {
 }
 
 export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(100);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [rowsPerPage, setRowsPerPage] = useState<number>(100);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Carga y Limpieza en un solo paso (Stream por Chunks) - Cero desperdicio de RAM
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 1. Carga optimizada mediante PapaParse Worker
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -22,76 +24,180 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
     setCurrentPage(1);
     setFeedback(null);
 
-    const cleanRows: Record<string, any>[] = [];
-    let totalRows = 0;
-
-    Papa.parse<Record<string, any>>(file, {
+    Papa.parse(file, {
       header: true,
-      skipEmptyLines: 'greedy',
+      skipEmptyLines: 'greedy', // Filtra líneas vacías automáticas sin carga extra
       worker: true,
-      chunk: (results) => {
-        totalRows += results.data.length;
-        // Bucle ultrarrápido de alto rendimiento sin Object.values
-        for (let i = 0; i < results.data.length; i++) {
-          const row = results.data[i];
-          let isValid = true;
-          for (const key in row) {
-            const v = row[key];
-            if (v === null || v === undefined || v === '' || (typeof v === 'string' && !v.trim())) {
-              isValid = false; break;
-            }
-          }
-          if (isValid) cleanRows.push(row);
-        }
-      },
-      complete: () => {
-        setData(cleanRows);
+      complete: (res) => {
+        const parsed = res.data as Record<string, any>[];
+        setData(parsed);
         setIsProcessing(false);
-        const removed = totalRows - cleanRows.length;
-        setFeedback(`Procesado: ${cleanRows.length.toLocaleString('es-ES')} filas válidas (${removed.toLocaleString('es-ES')} nulas eliminadas de ${totalRows.toLocaleString('es-ES')}).`);
+        setFeedback(
+          `Archivo "${file.name}" cargado exitosamente. ${parsed.length.toLocaleString('es-ES')} registros detectados.`
+        );
       },
-      error: () => { setFeedback('Error al leer el archivo CSV.'); setIsProcessing(false); }
+      error: () => {
+        setFeedback('Error al leer el archivo CSV. Verifique el formato.');
+        setIsProcessing(false);
+      },
     });
   };
 
-  const columns = useMemo(() => (data.length > 0 ? Object.keys(data[0]) : []), [data]);
+  // 2. Limpieza Ultra-Rápida con Web Worker Inline (No congela UI ni consume RAM)
+  const cleanNulls = () => {
+    if (data.length === 0) return;
+
+    setIsProcessing(true);
+    setFeedback(null);
+
+    // Creamos un Web Worker al vuelo para ejecutar el filtrado fuera del Hilo Principal (Main Thread)
+    const workerCode = `
+      self.onmessage = function(e) {
+        const dataset = e.data;
+        const initialCount = dataset.length;
+        
+        // Iteración de alto rendimiento sin asignación excesiva de memoria
+        const cleaned = dataset.filter((row) => {
+          for (const key in row) {
+            const val = row[key];
+            if (val === null || val === undefined || val === '') return false;
+            if (typeof val === 'string' && val.trim() === '') return false;
+          }
+          return true;
+        });
+
+        self.postMessage({
+          cleaned,
+          removedCount: initialCount - cleaned.length,
+          initialCount
+        });
+      };
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const worker = new Worker(URL.createObjectURL(blob));
+
+    worker.postMessage(data);
+
+    worker.onmessage = (e) => {
+      const { cleaned, removedCount, initialCount } = e.data;
+
+      if (removedCount === 0) {
+        setFeedback('Verificación completada: El conjunto de datos no contiene elementos nulos o vacíos.');
+      } else {
+        setFeedback(
+          `Limpieza exitosa: Se eliminaron ${removedCount.toLocaleString('es-ES')} filas nulas de un total de ${initialCount.toLocaleString('es-ES')}.`
+        );
+        setData(cleaned);
+        setCurrentPage(1);
+      }
+
+      setIsProcessing(false);
+      worker.terminate(); // Liberar memoria del worker inmediatamente
+      URL.revokeObjectURL(blob.toString());
+    };
+
+    worker.onerror = () => {
+      setFeedback('Error durante la ejecución del filtrado.');
+      setIsProcessing(false);
+      worker.terminate();
+    };
+  };
+
+  // Columnas dinámicas (Memoizado)
+  const columns = useMemo(() => {
+    return data.length > 0 ? Object.keys(data[0]) : [];
+  }, [data]);
+
+  // Paginación (Memoizado)
   const totalPages = Math.ceil(data.length / rowsPerPage) || 1;
-  const currentData = useMemo(() => data.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage), [data, currentPage, rowsPerPage]);
+
+  const currentData = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return data.slice(start, start + rowsPerPage);
+  }, [data, currentPage, rowsPerPage]);
 
   return (
     <div>
       <div style={{ marginBottom: '2rem' }}>
-        <h2 style={{ color: 'var(--text-main)', fontSize: '1.6rem', marginBottom: '0.5rem' }}>Ingesta &amp; Procesamiento Pandas (CSV)</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Procesamiento directo en streaming para volúmenes de más de 1,000,000 de filas.</p>
+        <h2 style={{ color: 'var(--text-main)', fontSize: '1.6rem', marginBottom: '0.5rem' }}>
+          Ingesta &amp; Procesamiento Pandas (CSV)
+        </h2>
+        <p style={{ color: 'var(--text-muted)' }}>
+          Carga de datos tabulares, filtrado de anomalías y exploración de datos en entorno oscuro de alta precisión.
+        </p>
       </div>
 
+      {/* Dropzone de Carga CSV */}
       <div className="dropzone">
-        <input type="file" accept=".csv" onChange={handleUpload} disabled={isProcessing} />
-        <div className="dropzone-title">{isProcessing ? 'Filtrando y procesando 1M+ filas...' : 'Haz clic o arrastra un archivo CSV aquí'}</div>
-        <div className="dropzone-hint">Filtrado inmediato en lectura asíncrona multihilo (PapaParse Chunking).</div>
+        <input ref={fileInputRef} type="file" accept=".csv" onChange={handleUpload} disabled={isProcessing} />
+        <div className="dropzone-title">
+          {isProcessing ? 'Procesando archivo CSV...' : 'Haz clic o arrastra un archivo CSV aquí'}
+        </div>
+        <div className="dropzone-hint">
+          Soporta estructuras de gran volumen mediante parsing asíncrono multihilo PapaParse.
+        </div>
       </div>
 
-      {feedback && <div className="alert alert-success" style={{ marginBottom: '1.5rem' }}>{feedback}</div>}
+      {/* Mensaje de Feedback */}
+      {feedback && (
+        <div className="alert alert-success" style={{ marginBottom: '1.5rem' }}>
+          {feedback}
+        </div>
+      )}
 
+      {/* Barra de Acción y Limpieza */}
       {data.length > 0 && (
-        <div>
-          <div className="action-bar">
-            <div>
-              <span className="tag-label" style={{ marginBottom: 0 }}>Metadata Dataset</span>
-              <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '0.95rem', marginTop: '0.2rem' }}>
-                {data.length.toLocaleString('es-ES')} filas válidas &times; {columns.length} columnas
-              </div>
+        <div className="action-bar">
+          <div>
+            <span className="tag-label" style={{ marginBottom: 0 }}>
+              Metadata Dataset
+            </span>
+            <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '0.95rem', marginTop: '0.2rem' }}>
+              {data.length.toLocaleString('es-ES')} filas &times; {columns.length} columnas
             </div>
           </div>
 
+          <button className="btn btn-primary" onClick={cleanNulls} disabled={isProcessing}>
+            {isProcessing ? 'Ejecutando Algoritmo...' : 'Ejecutar Limpieza de Nulos'}
+          </button>
+        </div>
+      )}
+
+      {/* Tabla Estilizada en Modo Oscuro */}
+      {data.length > 0 && (
+        <div>
+          {/* Controles de Paginación */}
           <div className="pagination-container">
             <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Página <strong style={{ color: 'var(--text-main)' }}>{currentPage}</strong> de <strong style={{ color: 'var(--text-main)' }}>{totalPages}</strong>
+              Mostrando página <strong style={{ color: 'var(--text-main)' }}>{currentPage}</strong> de{' '}
+              <strong style={{ color: 'var(--text-main)' }}>{totalPages}</strong>
             </div>
+
             <div className="pagination-controls">
-              <button className="btn btn-sm btn-outline" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}>Anterior</button>
-              <button className="btn btn-sm btn-outline" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}>Siguiente</button>
-              <select className="form-control" style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }} value={rowsPerPage} onChange={e => { setRowsPerPage(+e.target.value); setCurrentPage(1); }}>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1 || isProcessing}
+              >
+                Anterior
+              </button>
+              <button
+                className="btn btn-sm btn-outline"
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages || isProcessing}
+              >
+                Siguiente
+              </button>
+              <select
+                className="form-control"
+                style={{ width: 'auto', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
+                value={rowsPerPage}
+                onChange={(e) => {
+                  setRowsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+              >
                 <option value={50}>50 por pág.</option>
                 <option value={100}>100 por pág.</option>
                 <option value={500}>500 por pág.</option>
@@ -99,21 +205,26 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
             </div>
           </div>
 
+          {/* Tabla de Datos */}
           <div className="table-wrapper">
             <table className="data-table">
               <thead>
                 <tr>
                   <th className="row-index">#</th>
-                  {columns.map(col => <th key={col}>{col}</th>)}
+                  {columns.map((col) => (
+                    <th key={col}>{col}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {currentData.map((row, idx) => {
-                  const absoluteIdx = (currentPage - 1) * rowsPerPage + idx + 1;
+                  const absoluteRowIndex = (currentPage - 1) * rowsPerPage + idx + 1;
                   return (
-                    <tr key={absoluteIdx}>
-                      <td className="row-index">{absoluteIdx}</td>
-                      {columns.map(col => <td key={`${absoluteIdx}-${col}`}>{String(row[col] ?? '')}</td>)}
+                    <tr key={absoluteRowIndex}>
+                      <td className="row-index">{absoluteRowIndex}</td>
+                      {columns.map((col) => (
+                        <td key={`${absoluteRowIndex}-${col}`}>{String(row[col] ?? '')}</td>
+                      ))}
                     </tr>
                   );
                 })}
