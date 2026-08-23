@@ -2,7 +2,19 @@ import React, { useMemo } from 'react';
 import './numphy.css';
 
 function inferColumnType(values: any[]): string {
-  interface NumericStats {
+  const nonNull = values.filter(v => v !== null && v !== undefined && v !== '');
+  if (nonNull.length === 0) return 'empty';
+
+  const numericCount = nonNull.filter(v => !isNaN(parseFloat(v))).length;
+  const ratio = numericCount / nonNull.length;
+
+  if (ratio > 0.9) {
+    return 'numeric';
+  }
+  return 'categorical';
+}
+
+interface NumericStats {
   type: 'numeric';
   count: number;
   sum: number;
@@ -50,16 +62,92 @@ function computeNumericStats(values: number[]): NumericStats {
   };
 }
 
-  const nonNull = values.filter(v => v !== null && v !== undefined && v !== '');
-  if (nonNull.length === 0) return 'empty';
+interface BooleanStats {
+  type: 'boolean';
+  count: number;
+  trueCount: number;
+  truePct: number;
+}
 
-  const numericCount = nonNull.filter(v => !isNaN(parseFloat(v))).length;
-  const ratio = numericCount / nonNull.length;
-
-  if (ratio > 0.9) {
-    return 'numeric';
+function computeBooleanStats(values: number[]): BooleanStats {
+  let trueCount = 0;
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] === 1) trueCount++;
   }
-  return 'categorical';
+  return {
+    type: 'boolean',
+    count: values.length,
+    trueCount,
+    truePct: (trueCount / values.length) * 100,
+  };
+}
+
+interface CategoricalStats {
+  type: 'categorical';
+  count: number;
+  uniqueValues: number;
+  topValues: { value: string; count: number; pct: number }[];
+}
+
+function computeCategoricalStats(values: string[]): CategoricalStats {
+  const counts: Record<string, number> = {};
+
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    counts[v] = (counts[v] || 0) + 1;
+  }
+
+  const entries = Object.entries(counts);
+  entries.sort((a, b) => b[1] - a[1]);
+  const top5 = entries.slice(0, 5);
+
+  const topValues = top5.map(([value, count]) => ({
+    value,
+    count,
+    pct: (count / values.length) * 100,
+  }));
+
+  return {
+    type: 'categorical',
+    count: values.length,
+    uniqueValues: entries.length,
+    topValues,
+  };
+}
+
+function analyzeDataset(data: Record<string, any>[]) {
+  if (!data || data.length === 0) return [];
+
+  const columnNames = Object.keys(data[0]);
+  const results = [];
+
+  for (let c = 0; c < columnNames.length; c++) {
+    const colName = columnNames[c];
+    const rawValues = data.map(row => row[colName]);
+    const type = inferColumnType(rawValues);
+
+    if (type === 'numeric') {
+      const numericValues = rawValues
+        .filter(v => v !== null && v !== undefined && v !== '')
+        .map(v => typeof v === 'number' ? v : parseFloat(v));
+
+      const uniqueVals = new Set(numericValues);
+      const isBoolean = uniqueVals.size <= 2 && [...uniqueVals].every(v => v === 0 || v === 1);
+
+      if (isBoolean) {
+        results.push({ column: colName, ...computeBooleanStats(numericValues) });
+      } else {
+        results.push({ column: colName, ...computeNumericStats(numericValues) });
+      }
+    } else if (type === 'categorical') {
+      const stringValues = rawValues
+        .filter(v => v !== null && v !== undefined && v !== '')
+        .map(v => String(v));
+      results.push({ column: colName, ...computeCategoricalStats(stringValues) });
+    }
+  }
+
+  return results;
 }
 
 interface NumpyProps {
@@ -67,89 +155,14 @@ interface NumpyProps {
 }
 
 export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
-  const stats = useMemo(() => {
-    if (!data || data.length === 0) return null;
-
-    const montos: number[] = [];
-    let sumScore = 0;
-    let countScore = 0;
-    let totalFraudes = 0;
-    let countFraudeValid = 0;
-
-    for (let i = 0; i < data.length; i++) {
-      const row = data[i];
-
-      // Extracción de valores numéricos principales (Monto/Salario/Transacción)
-      const rawMonto = row.monto_transaccion_usd ?? row.monto ?? row.Salario ?? row.salario ?? row.monto_total;
-      if (rawMonto !== undefined && rawMonto !== null) {
-        const val = typeof rawMonto === 'number' ? rawMonto : parseFloat(rawMonto);
-        if (!isNaN(val)) montos.push(val);
-      }
-
-      // Score de Riesgo
-      const rawScore = row.score_riesgo_autenticacion ?? row.score_riesgo ?? row.score;
-      if (rawScore !== undefined && rawScore !== null) {
-        const val = typeof rawScore === 'number' ? rawScore : parseFloat(rawScore);
-        if (!isNaN(val)) {
-          sumScore += val;
-          countScore++;
-        }
-      }
-
-      // Casos de Fraude / Alerta
-      const rawFraude = row.es_fraude_confirmado ?? row.es_fraude ?? row.alerta;
-      if (rawFraude !== undefined && rawFraude !== null) {
-        const val = typeof rawFraude === 'number' ? rawFraude : parseFloat(rawFraude);
-        if (!isNaN(val)) {
-          countFraudeValid++;
-          if (val === 1) totalFraudes++;
-        }
-      }
-    }
-
-    const N = montos.length;
-    if (N === 0) return null;
-
-    let suma = 0;
-    let min = montos[0];
-    let max = montos[0];
-
-    for (let i = 0; i < N; i++) {
-      const v = montos[i];
-      suma += v;
-      if (v < min) min = v;
-      if (v > max) max = v;
-    }
-
-    const mean = suma / N;
-
-    let varianzaSum = 0;
-    for (let i = 0; i < N; i++) {
-      varianzaSum += Math.pow(montos[i] - mean, 2);
-    }
-    const stdDev = Math.sqrt(varianzaSum / N);
-
-    const sorted = [...montos].sort((a, b) => a - b);
-    const median = N % 2 === 0 ? (sorted[N / 2 - 1] + sorted[N / 2]) / 2 : sorted[Math.floor(N / 2)];
-
-    return {
-      totalRegistros: N,
-      sumaMontos: suma,
-      mediaMonto: mean,
-      medianaMonto: median,
-      stdDevMonto: stdDev,
-      minMonto: min,
-      maxMonto: max,
-      mediaScore: countScore > 0 ? sumScore / countScore : 0,
-      totalFraudes,
-      tasaFraudePct: countFraudeValid > 0 ? (totalFraudes / countFraudeValid) * 100 : 0,
-    };
+  const columnStats = useMemo(() => {
+    return analyzeDataset(data);
   }, [data]);
 
   const fmt = (val: number, decimals = 2) =>
     val.toLocaleString('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
-  if (!stats) {
+  if (columnStats.length === 0) {
     return (
       <div>
         <div style={{ marginBottom: '2rem' }}>
@@ -187,23 +200,16 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
 
       {/* Grid de Tarjetas KPI */}
       <div className="kpi-grid">
-        <div className="kpi-card">
-          <div className="kpi-label">Muestra Procesada</div>
-          <div className="kpi-value">{stats.totalRegistros.toLocaleString('es-ES')}</div>
-          <div className="kpi-subtext">Registros numéricos analizados</div>
-        </div>
-
-        <div className="kpi-card success">
-          <div className="kpi-label">Promedio Central (Mean)</div>
-          <div className="kpi-value">${fmt(stats.mediaMonto)}</div>
-          <div className="kpi-subtext">Valor medio por transacción</div>
-        </div>
-
-        <div className="kpi-card warning">
-          <div className="kpi-label">Desviación Estándar</div>
-          <div className="kpi-value">${fmt(stats.stdDevMonto)}</div>
-          <div className="kpi-subtext">Volatilidad / Dispersión de muestra</div>
-        </div>
+        {columnStats
+          .filter(s => s.type === 'numeric')
+          .slice(0, 3)
+          .map(s => (
+            <div className="kpi-card" key={s.column}>
+              <div className="kpi-label">{s.column}</div>
+              <div className="kpi-value">{fmt(s.mean)}</div>
+              <div className="kpi-subtext">Promedio ({s.count} registros)</div>
+            </div>
+          ))}
       </div>
 
       {/* Matriz Cuantitativa Completa */}
@@ -227,48 +233,48 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td><strong>Muestra Procesada (N)</strong></td>
-                <td>{stats.totalRegistros.toLocaleString('es-ES')} registros</td>
-                <td><span style={{ color: 'var(--text-muted)' }}>Tamaño muestral con valores numéricos coherentes</span></td>
-              </tr>
-              <tr>
-                <td><strong>Suma Acumulada (Sum)</strong></td>
-                <td>${fmt(stats.sumaMontos)}</td>
-                <td><span style={{ color: 'var(--text-muted)' }}>Totalización lineal de la muestra agregada</span></td>
-              </tr>
-              <tr>
-                <td><strong>Promedio Central (Mean)</strong></td>
-                <td>${fmt(stats.mediaMonto)}</td>
-                <td><span style={{ color: 'var(--text-muted)' }}>Media aritmética muestral (\(\mu\))</span></td>
-              </tr>
-              <tr>
-                <td><strong>Mediana Punto Medio (Median)</strong></td>
-                <td>${fmt(stats.medianaMonto)}</td>
-                <td><span style={{ color: 'var(--text-muted)' }}>Percentil 50 libre de sesgos por valores atípicos</span></td>
-              </tr>
-              <tr>
-                <td><strong>Desviación Estándar (Std Dev)</strong></td>
-                <td>${fmt(stats.stdDevMonto)}</td>
-                <td><span style={{ color: 'var(--text-muted)' }}>Desviación cuadrática media de la distribución (\(\sigma\))</span></td>
-              </tr>
-              <tr>
-                <td><strong>Mínimo Absoluto (Min)</strong></td>
-                <td>${fmt(stats.minMonto)}</td>
-                <td><span style={{ color: 'var(--text-muted)' }}>Límite inferior registrado en la serie de datos</span></td>
-              </tr>
-              <tr>
-                <td><strong>Máximo Absoluto (Max)</strong></td>
-                <td>${fmt(stats.maxMonto)}</td>
-                <td><span style={{ color: 'var(--text-muted)' }}>Límite superior registrado en la serie de datos</span></td>
-              </tr>
-              {stats.mediaScore > 0 && (
-                <tr>
-                  <td><strong>Score Promedio de Riesgo</strong></td>
-                  <td>{stats.mediaScore.toFixed(3)}</td>
-                  <td><span style={{ color: 'var(--text-muted)' }}>Índice de riesgo escalar estandarizado (0.0 a 1.0)</span></td>
-                </tr>
-              )}
+              {columnStats.map(s => {
+                if (s.type === 'numeric') {
+                  return (
+                    <tr key={s.column}>
+                      <td><strong>{s.column}</strong> (numérica)</td>
+                      <td>Media: {fmt(s.mean)} | Mediana: {fmt(s.median)}</td>
+                      <td>
+                        <span style={{ color: 'var(--text-muted)' }}>
+                          Min: {fmt(s.min)} · Max: {fmt(s.max)} · StdDev: {fmt(s.stdDev)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }
+                if (s.type === 'boolean') {
+                  return (
+                    <tr key={s.column}>
+                      <td><strong>{s.column}</strong> (booleana)</td>
+                      <td>{s.truePct.toFixed(1)}% en verdadero</td>
+                      <td>
+                        <span style={{ color: 'var(--text-muted)' }}>
+                          {s.trueCount} de {s.count} registros
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }
+                if (s.type === 'categorical') {
+                  return (
+                    <tr key={s.column}>
+                      <td><strong>{s.column}</strong> (categórica)</td>
+                      <td>{s.uniqueValues} valores únicos</td>
+                      <td>
+                        <span style={{ color: 'var(--text-muted)' }}>
+                          Top: {s.topValues.map(t => `${t.value} (${t.pct.toFixed(0)}%)`).join(', ')}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }
+                return null;
+              })}
             </tbody>
           </table>
         </div>
