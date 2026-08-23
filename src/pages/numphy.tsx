@@ -1,6 +1,67 @@
 import React, { useMemo } from 'react';
 import './numphy.css';
 
+function inferColumnType(values: any[]): string {
+  interface NumericStats {
+  type: 'numeric';
+  count: number;
+  sum: number;
+  mean: number;
+  median: number;
+  stdDev: number;
+  min: number;
+  max: number;
+}
+
+function computeNumericStats(values: number[]): NumericStats {
+  const N = values.length;
+
+  let suma = 0;
+  let min = values[0];
+  let max = values[0];
+
+  for (let i = 0; i < N; i++) {
+    const v = values[i];
+    suma += v;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+
+  const mean = suma / N;
+
+  let varianzaSum = 0;
+  for (let i = 0; i < N; i++) {
+    varianzaSum += Math.pow(values[i] - mean, 2);
+  }
+  const stdDev = Math.sqrt(varianzaSum / N);
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const median = N % 2 === 0 ? (sorted[N / 2 - 1] + sorted[N / 2]) / 2 : sorted[Math.floor(N / 2)];
+
+  return {
+    type: 'numeric',
+    count: N,
+    sum: suma,
+    mean,
+    median,
+    stdDev,
+    min,
+    max,
+  };
+}
+
+  const nonNull = values.filter(v => v !== null && v !== undefined && v !== '');
+  if (nonNull.length === 0) return 'empty';
+
+  const numericCount = nonNull.filter(v => !isNaN(parseFloat(v))).length;
+  const ratio = numericCount / nonNull.length;
+
+  if (ratio > 0.9) {
+    return 'numeric';
+  }
+  return 'categorical';
+}
+
 interface NumpyProps {
   data: Record<string, any>[];
 }
