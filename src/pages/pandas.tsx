@@ -15,7 +15,7 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Carga optimizada mediante PapaParse Worker
+  // 1. Carga optimizada mediante PapaParse (compatible con Vercel)
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -26,8 +26,7 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
 
     Papa.parse(file, {
       header: true,
-      skipEmptyLines: 'greedy', // Filtra líneas vacías automáticas sin carga extra
-      worker: true,
+      skipEmptyLines: 'greedy',
       complete: (res) => {
         const parsed = res.data as Record<string, any>[];
         setData(parsed);
@@ -43,20 +42,18 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
     });
   };
 
-  // 2. Limpieza Ultra-Rápida con Web Worker Inline (No congela UI ni consume RAM)
+  // 2. Limpieza Ultra-Rápida con Web Worker Inline
   const cleanNulls = () => {
     if (data.length === 0) return;
 
     setIsProcessing(true);
     setFeedback(null);
 
-    // Creamos un Web Worker al vuelo para ejecutar el filtrado fuera del Hilo Principal (Main Thread)
     const workerCode = `
       self.onmessage = function(e) {
         const dataset = e.data;
         const initialCount = dataset.length;
         
-        // Iteración de alto rendimiento sin asignación excesiva de memoria
         const cleaned = dataset.filter((row) => {
           for (const key in row) {
             const val = row[key];
@@ -75,7 +72,8 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
     `;
 
     const blob = new Blob([workerCode], { type: 'application/javascript' });
-    const worker = new Worker(URL.createObjectURL(blob));
+    const workerUrl = URL.createObjectURL(blob);
+    const worker = new Worker(workerUrl);
 
     worker.postMessage(data);
 
@@ -93,14 +91,15 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
       }
 
       setIsProcessing(false);
-      worker.terminate(); // Liberar memoria del worker inmediatamente
-      URL.revokeObjectURL(blob.toString());
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
     };
 
     worker.onerror = () => {
       setFeedback('Error durante la ejecución del filtrado.');
       setIsProcessing(false);
       worker.terminate();
+      URL.revokeObjectURL(workerUrl);
     };
   };
 
@@ -135,7 +134,7 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
           {isProcessing ? 'Procesando archivo CSV...' : 'Haz clic o arrastra un archivo CSV aquí'}
         </div>
         <div className="dropzone-hint">
-          Soporta estructuras de gran volumen mediante parsing asíncrono multihilo PapaParse.
+          Soporta estructuras de gran volumen mediante parsing asíncrono PapaParse.
         </div>
       </div>
 
