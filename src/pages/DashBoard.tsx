@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import PandasPage from './pandas';
 import NumpyPage from './numphy';
 import ChartsPage from './charts';
+import T_Machine from './TeachableMachine';
 import './DashBoard.css';
 
 export const Dashboard: React.FC = () => {
   // Estado para la pestaña activa
-  const [activeTab, setActiveTab] = useState<'pandas' | 'numpy' | 'charts'>('pandas');
+  const [activeTab, setActiveTab] = useState<'pandas' | 'numpy' | 'charts' | 'T_Machine'>('pandas')  ;
 
   // Estado global de los datos subidos para compartir entre Pandas, NumPy y Gráficos
   const [csvData, setCsvData] = useState<Record<string, any>[]>([]);
@@ -42,6 +43,13 @@ export const Dashboard: React.FC = () => {
               <span>Reportes &amp; Gráficos</span>
               {activeTab === 'charts' && <span style={{ fontSize: '0.7rem' }}>●</span>}
             </button>
+            <button
+              className={`nav-button ${activeTab === 'T_Machine' ? 'active' : ''}`}
+              onClick={() => setActiveTab('T_Machine')}
+            >
+              <span>Teachable Machine</span>
+              {activeTab === 'T_Machine' && <span style={{ fontSize: '0.7rem' }}>●</span>}
+            </button>
           </nav>
         </div>
 
@@ -64,6 +72,7 @@ export const Dashboard: React.FC = () => {
         {activeTab === 'pandas' && <PandasPage data={csvData} setData={setCsvData} />}
         {activeTab === 'numpy' && <NumpyPage data={csvData} />}
         {activeTab === 'charts' && <ChartsPage data={csvData} />}
+        {activeTab === 'T_Machine' && <T_Machine/>}
       </main>
     </div>
   );

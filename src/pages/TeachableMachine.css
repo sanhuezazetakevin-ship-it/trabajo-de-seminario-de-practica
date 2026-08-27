@@ -1,0 +1,155 @@
+/* Contenedor principal con tema oscuro acorde al Dashboard */
+.dashboard-container {
+  padding: 24px;
+  color: #f3f4f6;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 24px;
+}
+
+/* Selector de modelos arriba */
+.model-selector {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.selector-btn {
+  background-color: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  padding: 10px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.selector-btn:hover {
+  background-color: #334155;
+  color: #ffffff;
+}
+
+.selector-btn.active {
+  background-color: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+/* Layout en Grid para Cámara + Resultados */
+.classifier-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .classifier-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tarjeta del visor de video */
+.video-card {
+  background-color: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.webcam-box {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #000000;
+}
+
+.webcam-box canvas {
+  width: 100% !important;
+  max-width: 440px;
+  height: auto !important;
+  border-radius: 8px;
+}
+
+/* Tarjeta de Métricas / Predicciones */
+.metrics-card {
+  background-color: #111827;
+  border: 1px solid #1f2937;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.metrics-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.prediction-item {
+  margin-bottom: 14px;
+}
+
+.prediction-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.prediction-name {
+  color: #d1d5db;
+  font-weight: 500;
+}
+
+.prediction-value {
+  color: #60a5fa;
+  font-weight: 700;
+}
+
+/* Barra de progreso de la probabilidad */
+.progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background-color: #1f2937;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: #2563eb;
+  transition: width 0.2s ease-out;
+}
+
+.action-btn {
+  background-color: #2563eb;
+  color: #ffffff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.action-btn:disabled {
+  background-color: #374151;
+  color: #9ca3af;
+  cursor: not-allowed;
+}

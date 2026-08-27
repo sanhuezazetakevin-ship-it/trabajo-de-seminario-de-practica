@@ -7,6 +7,7 @@ import Home from '../pages/Home';
 import About from '../pages/About';
 import Service from '../pages/Service';
 import Contact from '../pages/Contact';
+import TeachableMachine from "../pages/TeachableMachine"
 
 
 import type { User } from '../types/auth';
@@ -44,6 +45,7 @@ function AppRoutes() {
         <Route path="/nosotros" element={<About />} />
         <Route path="/servicios" element={<Service />} />
         <Route path="/contacto" element={<Contact />} />
+        <Route path="/TeachableMachine" element={<TeachableMachine/>}/>
       </Route>
 
       {/* 3. Redirección por defecto */}

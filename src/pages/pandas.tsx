@@ -13,7 +13,7 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);0
 
   // 1. Carga optimizada mediante PapaParse (compatible con Vercel)
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
