@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import * as speechCommands from '@tensorflow-models/speech-commands';
 import '@tensorflow/tfjs';
-import './TeachableMachineAudio.css';
+
 
 const MODEL_URL = 'https://teachablemachine.withgoogle.com/models/SZ_0u6V5r/';
 
