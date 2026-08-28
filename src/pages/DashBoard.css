@@ -1,9 +1,11 @@
 /* ==========================================================================
-   DASHBOARD LAYOUT & SIDEBAR (DASHBOARD.CSS)
+   DASHBOARD LAYOUT & SIDEBAR (DASHBOARD.CSS) - CORREGIDO
    ========================================================================== */
 .dashboard-layout {
   display: flex;
   min-height: calc(100vh - 65px);
+  width: 100%;
+  overflow-x: hidden; /* Evita scroll horizontal global */
 }
 
 .sidebar {
@@ -15,6 +17,8 @@
   flex-direction: column;
   justify-content: space-between;
   flex-shrink: 0;
+  box-sizing: border-box;
+  overflow-x: hidden; /* Evita que los elementos se salgan por la derecha */
 }
 
 .sidebar-header {
@@ -35,6 +39,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  width: 100%;
 }
 
 .nav-button {
@@ -53,6 +58,12 @@
   text-align: left;
   transition: all 0.2s ease;
   font-family: inherit;
+  
+  /* Ajustes clave para evitar desbordamientos de texto largo */
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
 .nav-button:hover {
@@ -71,6 +82,7 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 1rem;
+  word-break: break-word;
 }
 
 .widget-label {
@@ -96,6 +108,7 @@
   height: 8px;
   border-radius: 50%;
   background-color: var(--warning);
+  flex-shrink: 0;
 }
 
 .status-dot.loaded {
@@ -106,5 +119,69 @@
   flex: 1;
   padding: 2rem;
   overflow-y: auto;
+  overflow-x: hidden;
   max-width: 1200px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ==========================================================================
+   RESPONSIVO PARA MÓVILES (< 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem;
+  }
+
+  .dashboard-content {
+    padding: 1rem;
+  }
+}
+/* Botón de módulos oculto por defecto en desktop */
+.mobile-modules-toggle {
+  display: none;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ==========================================================================
+   MÓVILES (< 768px): SIDEBAR DESPLEGABLE TIPO MENÚ
+   ========================================================================== */
+@media (max-width: 768px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+
+  .mobile-modules-toggle {
+    display: flex; /* Se habilita el botón superior en pantallas chicas */
+  }
+
+  .sidebar {
+    width: 100%;
+    display: none; /* Oculta los módulos por defecto */
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Clase que activa el despliegue al hacer clic en el botón */
+  .sidebar.open {
+    display: flex;
+  }
 }

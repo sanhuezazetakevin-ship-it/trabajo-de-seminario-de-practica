@@ -8,7 +8,8 @@ import About from '../pages/About';
 import Service from '../pages/Service';
 import Contact from '../pages/Contact';
 import TeachableMachine from "../pages/TeachableMachine"
-
+import TeachableMachineAudio from "../pages/TeachableMachineAudio"
+import TeachableMachinePose from "../pages/TeachableMachinePose"
 
 import type { User } from '../types/auth';
 
@@ -46,6 +47,8 @@ function AppRoutes() {
         <Route path="/servicios" element={<Service />} />
         <Route path="/contacto" element={<Contact />} />
         <Route path="/TeachableMachine" element={<TeachableMachine/>}/>
+        <Route path="/TeachableMachineAudio" element={<TeachableMachineAudio/>}/>
+        <Route path="/TeachableMachinePose" element={<TeachableMachinePose/>}/>
       </Route>
 
       {/* 3. Redirección por defecto */}
