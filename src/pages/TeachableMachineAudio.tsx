@@ -87,7 +87,6 @@ const TeachableMachineAudio: React.FC = () => {
           )}
         </div>
       </section>
-
       <section className="metrics-card">
         <h3 className="metrics-title">Resultados en Tiempo Real</h3>
 
