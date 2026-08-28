@@ -31,7 +31,7 @@ const TeachableMachineAudio: React.FC = () => {
       const classLabels = recognizer.wordLabels();
 
       await recognizer.listen(
-        (result) => {
+        async (result: speechCommands.SpeechCommandRecognizerResult) => {
           const scores = result.scores as Float32Array;
           const preds = classLabels.map((className, i) => ({
             className,
