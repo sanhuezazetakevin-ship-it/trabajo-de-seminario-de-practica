@@ -1,73 +1,22 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import './Home.css';
+import { useEffect, useRef, useState } from 'react';
+import * as tmPose from '@teachablemachine/pose';
+import './TeacheableMachinePose.css';
 
-const Home: React.FC = () => {
-  const navigate = useNavigate();
+type Prediction = { className: string; probability: number };
+type Capture = { id: string; time: string; image: string; top: Prediction };
+const URL = '/my_pose_model/';
 
-  return (
-    <div className="container">
-      {/* Sección Hero Ejecutiva */}
-      <section className="hero-section">
-        <h1 className="hero-title">
-          Pose&amp; <span>Procesamiento de Datos</span>
-        </h1>
-        <p className="hero-subtitle">
-          Infraestructura de alto rendimiento diseñada para la carga, limpieza y evaluación estadística de conjuntos de datos masivos. Generación de informes financieros e inteligencia analítica corporativa.
-        </p>
-        <div className="hero-actions">
-          <button className="btn btn-lg btn-primary" onClick={() => navigate('/dashboard')}>
-            Iniciar Dashboard
-          </button>
-          <button className="btn btn-lg btn-outline" onClick={() => navigate('/servicios')}>
-            Explorar Servicios
-          </button>
-        </div>
-      </section>
-
-      {/* Grid de 3 Tarjetas de Beneficios / Módulos */}
-      <section style={{ marginTop: '4rem' }}>
-        <div className="section-header">
-          <h2 className="section-title">Módulos de la Plataforma</h2>
-          <p className="section-subtitle">
-            Arquitectura desacoplada en tres etapas clave para garantizar integridad y rapidez.
-          </p>
-        </div>
-
-        <div className="grid-3">
-          <div className="card">
-            <span className="tag-label">Módulo 01</span>
-            <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', fontSize: '1.2rem' }}>
-              Ingesta &amp; Limpieza CSV
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.6' }}>
-              Procesamiento por secuencias mediante Web Workers. Filtrado automático de registros nulos, depuración de anomalías y visualización paginada de tablas numéricas.
-            </p>
-          </div>
-
-          <div className="card">
-            <span className="tag-label">Módulo 02</span>
-            <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', fontSize: '1.2rem' }}>
-              Cálculo Estadístico NumPy
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.6' }}>
-              Motor de analítica cuantitativa O(N) para la extracción rápida de medias, medianas, desviación estándar, percentiles y evaluación de riesgo transaccional.
-            </p>
-          </div>
-
-          <div className="card">
-            <span className="tag-label">Módulo 03</span>
-            <h3 style={{ color: 'var(--text-main)', marginBottom: '0.75rem', fontSize: '1.2rem' }}>
-              Reportes &amp; Exportación PDF
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.6' }}>
-              Generación de gráficos distribucionales y exportación directa de informes consolidados listos para auditorías institucionales y toma de decisiones.
-            </p>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-};
-
-export default Home;
+export default function TeachableMachinePose() {
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [captures, setCaptures] = useState<Capture[]>([]);
+  const [active, setActive] = useState(false); const [loading, setLoading] = useState(false);
+  const model = useRef<any>(null); const webcam = useRef<any>(null); const canvas = useRef<HTMLCanvasElement>(null); const raf = useRef<number | null>(null);
+  useEffect(() => { try { const saved = localStorage.getItem('pose_saved_photos'); if (saved) setCaptures(JSON.parse(saved)); } catch { /* historial opcional */ } return () => stop(); }, []);
+  useEffect(() => { localStorage.setItem('pose_saved_photos', JSON.stringify(captures.slice(0, 30))); }, [captures]);
+  const stop = () => { if (raf.current !== null) cancelAnimationFrame(raf.current); raf.current = null; webcam.current?.stop(); webcam.current = null; setActive(false); };
+  const loop = async () => { if (!webcam.current || !model.current || !canvas.current) return; webcam.current.update(); const result = await model.current.estimatePose(webcam.current.canvas); setPredictions(await model.current.predict(result.posenetOutput)); const ctx = canvas.current.getContext('2d'); if (ctx) { ctx.drawImage(webcam.current.canvas, 0, 0); if (result.pose) { tmPose.drawKeypoints(result.pose.keypoints, .5, ctx); tmPose.drawSkeleton(result.pose.keypoints, .5, ctx); } } raf.current = requestAnimationFrame(loop); };
+  const start = async () => { stop(); setLoading(true); try { model.current = await tmPose.load(`${URL}model.json`, `${URL}metadata.json`); webcam.current = new tmPose.Webcam(400, 400, true); await webcam.current.setup(); await webcam.current.play(); if (canvas.current) { canvas.current.width = 400; canvas.current.height = 400; } setActive(true); loop(); } catch (error) { console.error('Error al iniciar Pose:', error); } finally { setLoading(false); } };
+  const capture = () => { if (!canvas.current || !predictions.length) return; const top = [...predictions].sort((a, b) => b.probability - a.probability)[0]; setCaptures((old) => [{ id: crypto.randomUUID(), time: new Date().toLocaleString(), image: canvas.current!.toDataURL('image/jpeg', .75), top }, ...old].slice(0, 30)); };
+  const color = (p: number) => p >= .8 ? '#10b981' : p >= .5 ? '#f59e0b' : '#ef4444';
+  return <div className="pose-page"><h2 className="dashboard-title">Reconocimiento de Posturas</h2><p className="pose-description">Modelo Pose entrenado con Teachable Machine. Colócate frente a la cámara para analizar tu postura.</p><div className="pose-grid"><div className="video-card"><div className="pose-actions"><button className="action-btn" onClick={active ? stop : start} disabled={loading}>{loading ? 'Cargando modelo…' : active ? 'Detener cámara' : 'Iniciar cámara'}</button>{active && <button className="action-btn capture-btn" onClick={capture}>📸 Tomar foto</button>}</div><canvas ref={canvas} className="pose-canvas" /></div><div className="metrics-card"><h3 className="metrics-title">Resultados en Tiempo Real</h3>{predictions.length ? predictions.map((p) => <div className="prediction-item" key={p.className}><div className="prediction-header"><span>{p.className}</span><strong style={{ color: color(p.probability) }}>{(p.probability * 100).toFixed(1)}%</strong></div><div className="progress-bar-bg"><div className="progress-bar-fill" style={{ width: `${p.probability * 100}%`, backgroundColor: color(p.probability) }} /></div></div>) : <p className="pose-muted">Inicia la cámara para ver las predicciones.</p>}</div></div><div className="table-card"><div className="table-header-container"><h3 className="metrics-title" style={{ margin: 0 }}>Historial de Capturas</h3>{captures.length > 0 && <button className="clear-btn" onClick={() => setCaptures([])}>🗑️ Limpiar todo</button>}</div>{captures.length === 0 ? <p className="pose-muted">Aún no hay capturas guardadas.</p> : <div className="pose-captures">{captures.map((c) => <article className="pose-capture" key={c.id}><img src={c.image} alt={`Captura ${c.top.className}`} /><div><strong>{c.top.className}</strong><span>{(c.top.probability * 100).toFixed(1)}% de confianza</span><small>{c.time}</small></div></article>)}</div>}</div></div>;
+}
