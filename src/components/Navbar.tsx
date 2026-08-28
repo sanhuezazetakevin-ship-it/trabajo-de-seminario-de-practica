@@ -2,13 +2,16 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import type { User } from '../types/auth';
 import './Navbar.css';
+import ThemeToggle from './ThemeToggle';
 
 interface NavbarProps {
   user: User | null;
   onLogout: () => void;
+  isLightTheme: boolean;
+  onThemeToggle: () => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
+const Navbar: React.FC<NavbarProps> = ({ user, onLogout, isLightTheme, onThemeToggle }) => {
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -52,6 +55,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
           
           {/* Bloque de usuario/cierre de sesión dentro del menú desplegable en móviles */}
           <div className="mobile-actions">
+            <ThemeToggle isLight={isLightTheme} onToggle={onThemeToggle} />
             {user && <span className="user-badge">{user.name || user.email}</span>}
             <button className="btn btn-sm btn-outline" onClick={() => { onLogout(); closeMenu(); }}>
               Cerrar Sesión
@@ -61,6 +65,7 @@ const Navbar: React.FC<NavbarProps> = ({ user, onLogout }) => {
 
         {/* Acciones principales (Visibles solo en escritorio) */}
         <div className="navbar-actions desktop-actions">
+          <ThemeToggle isLight={isLightTheme} onToggle={onThemeToggle} />
           {user && <span className="user-badge">{user.name || user.email}</span>}
           <button className="btn btn-sm btn-outline" onClick={onLogout}>
             Cerrar Sesión

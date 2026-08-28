@@ -7,12 +7,14 @@ import type { User } from '../types/auth';
 interface MainLayoutsProps {
   user: User | null;
   onLogout: () => void;
+  isLightTheme: boolean;
+  onThemeToggle: () => void;
 }
 
-const MainLayouts: React.FC<MainLayoutsProps> = ({ user, onLogout }) => {
+const MainLayouts: React.FC<MainLayoutsProps> = ({ user, onLogout, isLightTheme, onThemeToggle }) => {
   return (
     <div className="layout-container">
-      <Navbar user={user} onLogout={onLogout} />
+      <Navbar user={user} onLogout={onLogout} isLightTheme={isLightTheme} onThemeToggle={onThemeToggle} />
       
       <main className="main-content">
         <Outlet />

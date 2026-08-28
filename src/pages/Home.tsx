@@ -9,6 +9,7 @@ const Home: React.FC = () => {
     <div className="container">
       {/* Sección Hero Ejecutiva */}
       <section className="hero-section">
+        <div className="theme-callout" role="status"><span className="theme-callout-dot" /> Tema claro disponible desde la barra superior</div>
         <h1 className="hero-title">
           Plataforma de Análisis Quantitativo &amp; <span>Procesamiento de Datos</span>
         </h1>

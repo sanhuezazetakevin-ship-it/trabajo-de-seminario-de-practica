@@ -264,3 +264,5 @@ textarea.form-control {
   font-size: 1rem;
   color: var(--text-muted);
 }
+
+:root[data-theme='light'] { --bg-main:#f5f8fc; --bg-card:#fff; --bg-card-alt:#eaf1fa; --border-color:#d6e0ec; --text-main:#172033; --text-body:#334155; --text-muted:#64748b; --primary:#2563eb; --primary-hover:#1d4ed8; --primary-dark:#1e40af; --shadow-sm:0 2px 4px rgba(30,64,175,.08); --shadow-md:0 4px 16px rgba(30,64,175,.12); --shadow-lg:0 8px 32px rgba(30,64,175,.16); }

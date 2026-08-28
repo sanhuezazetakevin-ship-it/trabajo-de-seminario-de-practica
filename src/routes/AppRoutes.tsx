@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import MainLayouts from '../layouts/MainLayouts';
 import LoginForm from '../pages/login';
@@ -15,7 +15,9 @@ import type { User } from '../types/auth';
 
 function AppRoutes() {
   const [user, setUser] = useState<User | null>(null);
+  const [isLightTheme, setIsLightTheme] = useState(() => localStorage.getItem('theme') === 'light');
   const navigate = useNavigate();
+  useEffect(() => { document.documentElement.dataset.theme = isLightTheme ? 'light' : 'dark'; localStorage.setItem('theme', isLightTheme ? 'light' : 'dark'); }, [isLightTheme]);
 
   // Iniciar sesión
   const handleLoginSuccess = (userData: User) => {
@@ -40,7 +42,7 @@ function AppRoutes() {
       />
 
       {/* 2. Rutas Protegidas */}
-      <Route element={user ? <MainLayouts user={user} onLogout={handleLogout} /> : <Navigate to="/" replace />}>
+      <Route element={user ? <MainLayouts user={user} onLogout={handleLogout} isLightTheme={isLightTheme} onThemeToggle={() => setIsLightTheme((value) => !value)} /> : <Navigate to="/" replace />}>
         <Route path="/dashboard" element={<DashBoard />} />
         <Route path="/home" element={<Home />} />
         <Route path="/nosotros" element={<About />} />
