@@ -1,18 +1,30 @@
-.equealizer{
+.equalizer {
     display: flex;
     align-items: flex-end;
     gap: 4px;
+    height: 40px;
 }
 
-.equealizer span{
+.equalizer span {
     display: block;
     width: 8px;
+    height: 100%;
     border-radius: 3px;
     background: linear-gradient(to top, #18ffba, #145f80);
     animation: bounce 1.2s ease-in-out infinite;
 }
+.progress-bar-fill {
+  height: 100%;
+  transition: width 0.15s cubic-bezier(0, 0, 0.2, 1);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #3b82f6, #10b981); /* agrega esto */
+}
 
-@keyframes bounce{
-    0%, 100%{ transform: scaleY(0.3);}
-    50% { transform: scaleY(1);}
+.equalizer span:nth-child(2n) { animation-delay: 0.2s; }
+.equalizer span:nth-child(3n) { animation-delay: 0.4s; }
+.equalizer span:nth-child(4n) { animation-delay: 0.1s; }
+
+@keyframes bounce {
+    0%, 100% { transform: scaleY(0.3); }
+    50%      { transform: scaleY(1); }
 }
