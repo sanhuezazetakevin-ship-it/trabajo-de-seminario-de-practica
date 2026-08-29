@@ -1,9 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import * as speechCommands from '@tensorflow-models/speech-commands';
 import '@tensorflow/tfjs';
-
+import './TeacheableMachineAudio.css';
 
 const MODEL_URL = 'https://teachablemachine.withgoogle.com/models/SZ_0u6V5r/';
+const BAR_COUNT = 12;
 
 const TeachableMachineAudio: React.FC = () => {
   const [predictions, setPredictions] = useState<any[]>([]);
@@ -11,6 +12,20 @@ const TeachableMachineAudio: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const audioRecognizer = useRef<speechCommands.SpeechCommandRecognizer | null>(null);
+  const equalizerRef = useRef<HTMLDivElement>(null);
+
+  // Crea las barras del ecualizador una sola vez
+  useEffect(() => {
+    const el = equalizerRef.current;
+    if (!el) return;
+
+    for (let i = 0; i < BAR_COUNT; i++) {
+      const bar = document.createElement('span');
+      bar.style.height = `${20 + Math.random() * 60}%`;
+      bar.style.animationDelay = `${Math.random() * 0.6}s`;
+      el.appendChild(bar);
+    }
+  }, []);
 
   const startListening = async () => {
     setIsLoading(true);
@@ -74,6 +89,9 @@ const TeachableMachineAudio: React.FC = () => {
         <p className="hero-subtitle">
           Reconocimiento de sonidos en tiempo real usando tu micrófono.
         </p>
+
+        {/* Barra de sonido */}
+        <div className="equalizer" ref={equalizerRef} />
 
         <div className="hero-actions">
           {!isListening ? (

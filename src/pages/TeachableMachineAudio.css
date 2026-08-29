@@ -1,0 +1,18 @@
+.equealizer{
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.equealizer span{
+    display: block;
+    width: 8px;
+    border-radius: 3px;
+    background: linear-gradient(to top, #18ffba, #145f80);
+    animation: bounce 1.2s ease-in-out infinite;
+}
+
+@keyframes bounce{
+    0%, 100%{ transform: scaleY(0.3);}
+    50% { transform: scaleY(1);}
+}
