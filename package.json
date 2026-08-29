@@ -12,11 +12,14 @@
   "dependencies": {
     "@teachablemachine/image": "^0.8.5",
     "@teachablemachine/pose": "^0.8.6",
+    "@tensorflow-models/knn-classifier": "^1.2.6",
+    "@tensorflow-models/mobilenet": "^2.1.1",
     "@tensorflow-models/speech-commands": "^0.5.4",
     "@tensorflow/tfjs": "^4.22.0",
     "papaparse": "^5.6.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-is": "^19.2.8",
     "react-router-dom": "^7.18.2",
     "recharts": "^3.10.1",
     "xlsx": "^0.18.5"
