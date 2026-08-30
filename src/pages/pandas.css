@@ -1,111 +1,208 @@
 /* ==========================================================================
-   MÓDULO PANDAS (PANDAS.CSS)
+   1. VARIABLES & TEMAS (LIGHT / DARK)
+   ========================================================================== */
+:root {
+  --bg-card: #ffffff;
+  --bg-card-alt: #f8fafc;
+  --bg-hover: rgba(59, 130, 246, 0.04);
+  --bg-input: #ffffff;
+  --border-color: #e2e8f0;
+  --border-color-hover: #cbd5e1;
+  --text-main: #0f172a;
+  --text-body: #334155;
+  --text-muted: #64748b;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-glow: rgba(37, 99, 235, 0.15);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+@media (prefers-color-scheme: dark) { :root { --dark-mode: 1; } }
+:root, [data-theme="dark"] {
+  --bg-card: #111827;
+  --bg-card-alt: #1f2937;
+  --bg-hover: rgba(59, 130, 246, 0.08);
+  --bg-input: #1f2937;
+  --border-color: #374151;
+  --border-color-hover: #4b5563;
+  --text-main: #f9fafb;
+  --text-body: #e5e7eb;
+  --text-muted: #9ca3af;
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-glow: rgba(59, 130, 246, 0.25);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   2. REGLAS GLOBALES Y OCULTAMIENTO DE SCROLLBARS
+   ========================================================================== */
+.table-wrapper-responsive,
+.dropdown-menu {
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* IE / Edge */
+}
+
+.table-wrapper-responsive::-webkit-scrollbar,
+.dropdown-menu::-webkit-scrollbar {
+  display: none;                /* Chrome, Safari, Opera */
+}
+
+/* ==========================================================================
+   3. UI COMPONENTES (DROPZONE, PANELS, BAR)
    ========================================================================== */
 .dropzone {
-  border: 2px dashed var(--border-color);
-  border-radius: var(--radius-md);
+  position: relative;
   padding: 3rem 2rem;
   text-align: center;
   background-color: var(--bg-card);
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
-  margin-bottom: 2rem;
-  position: relative;
+  margin-bottom: 1.5rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .dropzone:hover {
   border-color: var(--primary);
-  background-color: rgba(59, 130, 246, 0.03);
+  background-color: var(--bg-hover);
+  box-shadow: 0 0 20px var(--primary-glow);
+  transform: translateY(-2px);
 }
+.dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.dropzone-title { font-size: 1.15rem; font-weight: 600; color: var(--text-main); margin-bottom: 0.5rem; }
+.dropzone-hint { font-size: 0.85rem; color: var(--text-muted); }
 
-.dropzone input[type="file"] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  width: 100%;
-  height: 100%;
-}
-
-.dropzone-title {
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: var(--text-main);
-  margin-bottom: 0.5rem;
-}
-
-.dropzone-hint {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.action-bar {
+.filter-panel, .action-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 1rem 1.5rem;
+  padding: 1.25rem 1.5rem;
   margin-bottom: 1.5rem;
+  box-shadow: var(--shadow-sm);
 }
+.filter-panel { gap: 1.25rem; flex-wrap: wrap; }
+.action-bar { justify-content: space-between; padding: 1rem 1.5rem; }
 
-.table-wrapper {
-  width: 100%;
+.filter-group { display: flex; flex-direction: column; gap: 0.4rem; }
+.filter-input-container { flex: 1; min-width: 240px; }
+.filter-label, .tag-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 700; }
+.tag-label { font-size: 0.7rem; letter-spacing: 0.08em; color: var(--primary); }
+
+.form-control {
+  background-color: var(--bg-input);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.8rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+.form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+.select-column { min-width: 220px; }
+
+/* ==========================================================================
+   4. TABLA FLUIDA & PAGINACIÓN
+   ========================================================================== */
+.table-wrapper-responsive {
+  width: fit-content;
+  max-width: 100%;
   overflow-x: auto;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-  font-size: 0.85rem;
+.data-table-responsive { width: auto; border-collapse: collapse; text-align: left; }
+.data-table-responsive th, .data-table-responsive td {
+  padding: 0.85rem 1.2rem;
+  border-bottom: 1px solid var(--border-color);
+  max-width: 350px;
+  word-wrap: break-word;
+  white-space: normal;
 }
-
-.data-table th {
+.data-table-responsive th {
   background-color: var(--bg-card-alt);
   color: var(--text-muted);
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.7rem;
   letter-spacing: 0.08em;
-  padding: 0.9rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-  white-space: nowrap;
+  min-width: 160px;
 }
-
-.data-table td {
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-body);
-  white-space: nowrap;
-}
-
-.data-table tbody tr:hover {
-  background-color: rgba(59, 130, 246, 0.05);
-}
+.data-table-responsive td { color: var(--text-body); font-size: 0.85rem; vertical-align: top; }
+.data-table-responsive tbody tr { transition: background-color 0.15s ease; }
+.data-table-responsive tbody tr:hover { background-color: var(--bg-hover); }
 
 .row-index {
   color: var(--text-muted);
   font-weight: 600;
   font-size: 0.75rem;
-  width: 50px;
+  width: 60px !important;
+  min-width: 60px !important;
+  text-align: center;
 }
 
-.pagination-container {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  padding: 0.5rem 0;
-}
+.pagination-container, .pagination-controls { display: flex; align-items: center; }
+.pagination-container { justify-content: space-between; margin-bottom: 1rem; padding: 0.5rem 0; }
+.pagination-controls { gap: 0.75rem; }
 
-.pagination-controls {
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-primary { background-color: var(--primary); color: #fff; }
+.btn-primary:hover:not(:disabled) { background-color: var(--primary-hover); box-shadow: 0 0 12px var(--primary-glow); }
+.btn-outline { background-color: transparent; border-color: var(--border-color); color: var(--text-main); }
+.btn-outline:hover:not(:disabled) { border-color: var(--border-color-hover); background-color: var(--bg-hover); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ==========================================================================
+   5. MULTI-SELECT DROPDOWN
+   ========================================================================== */
+.custom-dropdown { position: relative; min-width: 260px; }
+.dropdown-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; cursor: pointer; text-align: left; }
+.dropdown-arrow { font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem; }
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  max-height: 260px;
+  overflow-y: auto;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+  padding: 0.4rem 0;
+}
+.dropdown-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--text-body);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
 }
+.dropdown-item:hover { background-color: var(--bg-hover); }
+.dropdown-item input[type="checkbox"] { cursor: pointer; accent-color: var(--primary); width: 15px; height: 15px; }
+.dropdown-item-header { color: var(--text-main); background-color: var(--bg-card-alt); }
+.dropdown-divider { height: 1px; background-color: var(--border-color); margin: 0.3rem 0; }
