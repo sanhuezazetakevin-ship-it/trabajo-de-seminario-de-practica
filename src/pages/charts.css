@@ -28,56 +28,127 @@
   margin-bottom: 1.5rem;
 }
 
-/* Native CSS Bar Chart */
-.css-bar-chart {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+/* Tooltip interactivo de Recharts (Bar / Pie) */
+.chart-tooltip {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.9rem;
+  box-shadow: var(--shadow-md);
+  min-width: 160px;
 }
 
-.chart-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.chart-item-header {
-  display: flex;
-  justify-content: space-between;
+.chart-tooltip-name {
+  font-weight: 700;
   font-size: 0.85rem;
+  margin-bottom: 0.2rem;
 }
 
-.chart-item-label {
-  font-weight: 600;
-  color: var(--text-main);
-}
-
-.chart-item-meta {
-  color: var(--text-muted);
+.chart-tooltip-value {
   font-size: 0.8rem;
 }
 
-.bar-track {
-  width: 100%;
-  height: 12px;
+.chart-tooltip-pct {
+  font-size: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+/* Leyenda interactiva de la dona de canales */
+.chart-legend {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  cursor: default;
+  transition: background-color 0.15s ease;
+}
+
+.chart-legend-item.active,
+.chart-legend-item:hover {
   background-color: var(--bg-card-alt);
-  border-radius: 6px;
-  overflow: hidden;
 }
 
-.bar-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary) 0%, #2563eb 100%);
-  border-radius: 6px;
-  transition: width 0.6s ease;
+.chart-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.bar-fill.accent-teal {
-  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+.chart-legend-label {
+  flex: 1;
+  color: var(--text-main);
+  font-weight: 600;
 }
 
-.bar-fill.accent-amber {
-  background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+.chart-legend-value {
+  color: var(--text-muted);
+}
+
+/* Gauge semicircular del estado de riesgo */
+.risk-gauge-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.risk-gauge-chart {
+  position: relative;
+  flex: 1 1 260px;
+  min-width: 240px;
+}
+
+.risk-gauge-center {
+  position: absolute;
+  left: 50%;
+  bottom: 0.5rem;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+.risk-gauge-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.risk-gauge-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.risk-gauge-details {
+  flex: 1 1 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.risk-gauge-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-body);
+  background-color: var(--bg-card-alt);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.9rem;
+}
+
+.risk-gauge-detail-row strong {
+  margin-left: auto;
+  color: var(--text-main);
 }
 
 /* Reglas de impresión PDF */
@@ -102,17 +173,26 @@
     color: #000000 !important;
   }
   
-  .kpi-value, .chart-title, .section-title, h1, h2, h3, h4 {
+  .kpi-value, .kpi-label, .kpi-subtext, .chart-title, .section-title, h1, h2, h3, h4 {
     color: #000000 !important;
   }
-  
-  .bar-track {
-    background-color: #e2e8f0 !important;
+
+  /* Recharts renderiza los textos de ejes/etiquetas con fill SVG, no con color CSS */
+  .recharts-text,
+  .recharts-cartesian-axis-tick-value {
+    fill: #000000 !important;
   }
 
-  .bar-fill {
-    background: #2563eb !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+  .chart-legend-label,
+  .chart-legend-value,
+  .chart-tooltip-pct,
+  .risk-gauge-sub,
+  .risk-gauge-detail-row {
+    color: #000000 !important;
+  }
+
+  .risk-gauge-detail-row {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
   }
 }
