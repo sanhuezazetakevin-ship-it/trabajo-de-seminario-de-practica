@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import Papa from 'papaparse';
 import './pandas.css';
 
@@ -13,9 +13,38 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);0
+  // Múltiples columnas seleccionadas & Filtro de texto
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [filterQuery, setFilterQuery] = useState<string>('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
 
-  // 1. Carga optimizada mediante PapaParse (compatible con Vercel)
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Columnas disponibles en el dataset
+  const availableColumns = useMemo(() => {
+    return data.length > 0 ? Object.keys(data[0]) : [];
+  }, [data]);
+
+  // Al cargar datos o cambiar de dataset, seleccionar todas por defecto
+  useEffect(() => {
+    if (availableColumns.length > 0) {
+      setSelectedColumns(availableColumns);
+    }
+  }, [availableColumns]);
+
+  // Cerrar el menú desplegable si se hace clic afuera
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handler para subir CSV
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -23,6 +52,7 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
     setIsProcessing(true);
     setCurrentPage(1);
     setFeedback(null);
+    setFilterQuery('');
 
     Papa.parse(file, {
       header: true,
@@ -42,8 +72,8 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
     });
   };
 
-  // 2. Limpieza Ultra-Rápida con Web Worker Inline
-  const cleanNulls = () => {
+  // Limpieza de nulos mediante Web Worker
+  const cleanNulls = useCallback(() => {
     if (data.length === 0) return;
 
     setIsProcessing(true);
@@ -101,20 +131,48 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
       worker.terminate();
       URL.revokeObjectURL(workerUrl);
     };
+  }, [data, setData]);
+
+  // Lógica para marcar / desmarcar columnas individualmente
+  const toggleColumn = (col: string) => {
+    setSelectedColumns((prev) =>
+      prev.includes(col) ? prev.filter((item) => item !== col) : [...prev, col]
+    );
   };
 
-  // Columnas dinámicas (Memoizado)
-  const columns = useMemo(() => {
-    return data.length > 0 ? Object.keys(data[0]) : [];
-  }, [data]);
+  // Marcar o desmarcar TODAS las columnas
+  const toggleAllColumns = () => {
+    if (selectedColumns.length === availableColumns.length) {
+      setSelectedColumns([]);
+    } else {
+      setSelectedColumns(availableColumns);
+    }
+  };
 
-  // Paginación (Memoizado)
-  const totalPages = Math.ceil(data.length / rowsPerPage) || 1;
+  // Columnas visibles ordenadas según la estructura original
+  const visibleColumns = useMemo(() => {
+    return availableColumns.filter((col) => selectedColumns.includes(col));
+  }, [availableColumns, selectedColumns]);
+
+  // Filtrado de registros en tiempo real sobre las columnas activas
+  const filteredData = useMemo(() => {
+    if (!filterQuery.trim()) return data;
+    const query = filterQuery.toLowerCase();
+
+    return data.filter((row) => {
+      return visibleColumns.some((col) =>
+        String(row[col] ?? '').toLowerCase().includes(query)
+      );
+    });
+  }, [data, filterQuery, visibleColumns]);
+
+  // Paginación
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
 
   const currentData = useMemo(() => {
     const start = (currentPage - 1) * rowsPerPage;
-    return data.slice(start, start + rowsPerPage);
-  }, [data, currentPage, rowsPerPage]);
+    return filteredData.slice(start, start + rowsPerPage);
+  }, [filteredData, currentPage, rowsPerPage]);
 
   return (
     <div>
@@ -123,11 +181,11 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
           Ingesta &amp; Procesamiento Pandas (CSV)
         </h2>
         <p style={{ color: 'var(--text-muted)' }}>
-          Carga de datos tabulares, filtrado de anomalías y exploración de datos en entorno oscuro de alta precisión.
+          Carga de datos tabulares, filtrado dinámico multi-columna y exploración rápida.
         </p>
       </div>
 
-      {/* Dropzone de Carga CSV */}
+      {/* Dropzone */}
       <div className="dropzone">
         <input ref={fileInputRef} type="file" accept=".csv" onChange={handleUpload} disabled={isProcessing} />
         <div className="dropzone-title">
@@ -145,7 +203,72 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
         </div>
       )}
 
-      {/* Barra de Acción y Limpieza */}
+      {/* Panel de Filtros con Desplegable Multi-Selección */}
+      {data.length > 0 && (
+        <div className="filter-panel">
+          {/* Multi-Select de Columnas */}
+          <div className="filter-group" ref={dropdownRef}>
+            <label className="filter-label">Columnas Visibles:</label>
+            <div className="custom-dropdown">
+              <button
+                type="button"
+                className="form-control dropdown-trigger"
+                onClick={() => setIsDropdownOpen((prev) => !prev)}
+              >
+                <span>
+                  {selectedColumns.length === 0
+                    ? 'Ninguna seleccionada'
+                    : selectedColumns.length === availableColumns.length
+                    ? `Todas las columnas (${availableColumns.length})`
+                    : `${selectedColumns.length} de ${availableColumns.length} seleccionadas`}
+                </span>
+                <span className="dropdown-arrow">▼</span>
+              </button>
+
+              {isDropdownOpen && (
+                <div className="dropdown-menu">
+                  <label className="dropdown-item dropdown-item-header">
+                    <input
+                      type="checkbox"
+                      checked={selectedColumns.length === availableColumns.length && availableColumns.length > 0}
+                      onChange={toggleAllColumns}
+                    />
+                    <strong>Seleccionar Todas</strong>
+                  </label>
+                  <div className="dropdown-divider" />
+                  {availableColumns.map((col) => (
+                    <label key={col} className="dropdown-item">
+                      <input
+                        type="checkbox"
+                        checked={selectedColumns.includes(col)}
+                        onChange={() => toggleColumn(col)}
+                      />
+                      <span>{col}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Búsqueda por Texto */}
+          <div className="filter-group filter-input-container">
+            <label className="filter-label">Buscar registro:</label>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Buscar en columnas seleccionadas..."
+              value={filterQuery}
+              onChange={(e) => {
+                setFilterQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Metadata & Acciones */}
       {data.length > 0 && (
         <div className="action-bar">
           <div>
@@ -153,7 +276,8 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
               Metadata Dataset
             </span>
             <div style={{ color: 'var(--text-main)', fontWeight: 600, fontSize: '0.95rem', marginTop: '0.2rem' }}>
-              {data.length.toLocaleString('es-ES')} filas &times; {columns.length} columnas
+              {filteredData.length.toLocaleString('es-ES')} de {data.length.toLocaleString('es-ES')} filas &times;{' '}
+              {visibleColumns.length} columna(s) visible(s)
             </div>
           </div>
 
@@ -163,10 +287,10 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
         </div>
       )}
 
-      {/* Tabla Estilizada en Modo Oscuro */}
+      {/* Tabla */}
       {data.length > 0 && (
         <div>
-          {/* Controles de Paginación */}
+          {/* Paginación */}
           <div className="pagination-container">
             <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
               Mostrando página <strong style={{ color: 'var(--text-main)' }}>{currentPage}</strong> de{' '}
@@ -204,29 +328,49 @@ export const PandasPage: React.FC<PandasProps> = ({ data, setData }) => {
             </div>
           </div>
 
-          {/* Tabla de Datos */}
-          <div className="table-wrapper">
-            <table className="data-table">
+          {/* Tabla Responsive Adaptable */}
+          <div className="table-wrapper-responsive">
+            <table className="data-table-responsive">
               <thead>
                 <tr>
                   <th className="row-index">#</th>
-                  {columns.map((col) => (
+                  {visibleColumns.map((col) => (
                     <th key={col}>{col}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {currentData.map((row, idx) => {
-                  const absoluteRowIndex = (currentPage - 1) * rowsPerPage + idx + 1;
-                  return (
-                    <tr key={absoluteRowIndex}>
-                      <td className="row-index">{absoluteRowIndex}</td>
-                      {columns.map((col) => (
-                        <td key={`${absoluteRowIndex}-${col}`}>{String(row[col] ?? '')}</td>
-                      ))}
-                    </tr>
-                  );
-                })}
+                {visibleColumns.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={1}
+                      style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}
+                    >
+                      Seleccione al menos una columna para mostrar datos.
+                    </td>
+                  </tr>
+                ) : currentData.length > 0 ? (
+                  currentData.map((row, idx) => {
+                    const absoluteRowIndex = (currentPage - 1) * rowsPerPage + idx + 1;
+                    return (
+                      <tr key={absoluteRowIndex}>
+                        <td className="row-index">{absoluteRowIndex}</td>
+                        {visibleColumns.map((col) => (
+                          <td key={`${absoluteRowIndex}-${col}`}>{String(row[col] ?? '')}</td>
+                        ))}
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={visibleColumns.length + 1}
+                      style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}
+                    >
+                      No se encontraron filas que coincidan con la búsqueda.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

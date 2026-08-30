@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import * as tmImage from '@teachablemachine/image';
 import './TeachableMachine.css';
 
@@ -24,19 +24,63 @@ interface CapturedPhoto {
 }
 
 const MODELS: ModelConfig[] = [
-  { id: 'persona-celular', name: 'Detección gafas/sin gafas/ audífonos/ lapiceros', url: 'https://teachablemachine.withgoogle.com/models/G9buTvJWE/' },
+  {
+    id: 'persona-celular',
+    name: 'Detección gafas / audífonos / lapiceros',
+    url: 'https://teachablemachine.withgoogle.com/models/G9buTvJWE/',
+  },
 ];
+
+const ITEMS_PER_PAGE = 20;
+
+const getConfidenceColor = (prob: number) => {
+  if (prob >= 0.8) return 'var(--accent-emerald)';
+  if (prob >= 0.5) return '#f59e0b';
+  return 'var(--accent-rose)';
+};
+
+// Componente reutilizable para barras de progreso
+function PredictionList({ predictions }: { predictions: Prediction[] }) {
+  return (
+    <>
+      {predictions.map((p) => {
+        const percentage = (p.probability * 100).toFixed(1);
+        const color = getConfidenceColor(p.probability);
+        return (
+          <div key={p.className} className="prediction-item">
+            <div className="prediction-header">
+              <span>{p.className}</span>
+              <span style={{ color }}>{percentage}%</span>
+            </div>
+            <div className="progress-bar-bg">
+              <div
+                className="progress-bar-fill"
+                style={{ width: `${percentage}%`, backgroundColor: color }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
 
 export default function Classifier() {
   const [selectedModel, setSelectedModel] = useState<ModelConfig>(MODELS[0]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [savedPhotos, setSavedPhotos] = useState<CapturedPhoto[]>([]);
-  const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [activeModalPhoto, setActiveModalPhoto] = useState<CapturedPhoto | null>(null);
+  const [savedPhotos, setSavedPhotos] = useState<CapturedPhoto[]>(() => {
+    try {
+      const stored = localStorage.getItem('tm_saved_photos');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const itemsPerPage = 20;
+  const [isCameraActive, setIsCameraActive] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeModalPhoto, setActiveModalPhoto] = useState<CapturedPhoto | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const webcamRef = useRef<HTMLDivElement>(null);
   const webcamInstance = useRef<tmImage.Webcam | null>(null);
@@ -44,54 +88,34 @@ export default function Classifier() {
   const currentModelInstance = useRef<tmImage.CustomMobileNet | null>(null);
   const lastPredictionTime = useRef<number>(0);
 
-  // 1. Cargar localStorage solo en el cliente (evita errores de hidratación/SSR en Vercel)
+  // Guardar fotos en localStorage (limitado a 30)
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('tm_saved_photos');
-      if (stored) {
-        setSavedPhotos(JSON.parse(stored));
-      }
+      localStorage.setItem('tm_saved_photos', JSON.stringify(savedPhotos.slice(0, 30)));
     } catch (e) {
-      console.error('Error al leer de localStorage:', e);
-    }
-  }, []);
-
-  // 2. Guardar en localStorage limitando a 30 elementos para evitar QuotaExceededError
-  useEffect(() => {
-    if (savedPhotos.length === 0) return;
-    try {
-      // Guardamos solo los últimos 30 registros para no exceder los 5MB de quota con Base64
-      const trimmed = savedPhotos.slice(0, 30);
-      localStorage.setItem('tm_saved_photos', JSON.stringify(trimmed));
-    } catch (e) {
-      console.warn('Límite de localStorage alcanzado:', e);
+      console.warn('Error al guardar en localStorage:', e);
     }
   }, [savedPhotos]);
 
-  const stopCurrentCamera = () => {
-    if (animationId.current) {
-      cancelAnimationFrame(animationId.current);
-      animationId.current = null;
-    }
-    if (webcamInstance.current) {
-      webcamInstance.current.stop();
-      webcamInstance.current = null;
-    }
-    if (webcamRef.current) {
-      webcamRef.current.innerHTML = '';
-    }
+  const stopCurrentCamera = useCallback(() => {
+    if (animationId.current) cancelAnimationFrame(animationId.current);
+    if (webcamInstance.current) webcamInstance.current.stop();
+    if (webcamRef.current) webcamRef.current.innerHTML = '';
+    
+    animationId.current = null;
+    webcamInstance.current = null;
     setIsCameraActive(false);
-  };
+  }, []);
 
   const startModel = async (modelConfig = selectedModel) => {
     stopCurrentCamera();
     setIsLoading(true);
 
     try {
-      const modelURL = modelConfig.url + 'model.json';
-      const metadataURL = modelConfig.url + 'metadata.json';
-
-      const loadedModel = await tmImage.load(modelURL, metadataURL);
+      const loadedModel = await tmImage.load(
+        `${modelConfig.url}model.json`,
+        `${modelConfig.url}metadata.json`
+      );
       currentModelInstance.current = loadedModel;
 
       const webcam = new tmImage.Webcam(400, 400, true);
@@ -106,13 +130,12 @@ export default function Classifier() {
 
       const loop = async () => {
         if (!webcamInstance.current) return;
-
         webcam.update();
-        const now = Date.now();
 
+        const now = Date.now();
         if (now - lastPredictionTime.current > 150) {
-          const prediction = await loadedModel.predict(webcam.canvas);
-          setPredictions(prediction);
+          const pred = await loadedModel.predict(webcam.canvas);
+          setPredictions(pred);
           lastPredictionTime.current = now;
         }
 
@@ -122,8 +145,8 @@ export default function Classifier() {
       loop();
       setIsCameraActive(true);
     } catch (error) {
-      console.error('Error al cargar el modelo:', error);
-      alert('Error al acceder a la cámara o cargar el modelo. Verifica los permisos HTTPS.');
+      console.error('Error al cargar modelo/cámara:', error);
+      alert('Error al acceder a la cámara o cargar el modelo. Verifica los permisos.');
     } finally {
       setIsLoading(false);
     }
@@ -132,20 +155,17 @@ export default function Classifier() {
   const capturePhoto = () => {
     if (!webcamInstance.current || predictions.length === 0) return;
 
-    const canvas = webcamInstance.current.canvas;
-    const imageDataUrl = canvas.toDataURL('image/png');
-
-    const sortedPredictions = [...predictions].sort((a, b) => b.probability - a.probability);
-    const topPrediction = sortedPredictions[0];
+    const imageDataUrl = webcamInstance.current.canvas.toDataURL('image/png');
+    const sorted = [...predictions].sort((a, b) => b.probability - a.probability);
 
     const newPhoto: CapturedPhoto = {
       id: Date.now().toString(),
-      timestamp: new Date().toLocaleTimeString(),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
       imageDataUrl,
       modelName: selectedModel.name,
-      topClass: topPrediction.className,
-      topProbability: topPrediction.probability,
-      allPredictions: predictions
+      topClass: sorted[0].className,
+      topProbability: sorted[0].probability,
+      allPredictions: predictions,
     };
 
     setSavedPhotos((prev) => [newPhoto, ...prev]);
@@ -153,11 +173,11 @@ export default function Classifier() {
 
   const handleDeletePhoto = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSavedPhotos((prev) => prev.filter((photo) => photo.id !== id));
+    setSavedPhotos((prev) => prev.filter((p) => p.id !== id));
   };
 
   const handleClearAll = () => {
-    if (window.confirm('¿Seguro que deseas eliminar todo el historial?')) {
+    if (window.confirm('¿Deseas vaciar el historial de capturas?')) {
       setSavedPhotos([]);
       localStorage.removeItem('tm_saved_photos');
     }
@@ -165,29 +185,23 @@ export default function Classifier() {
 
   const handleSelectModel = (modelConfig: ModelConfig) => {
     setSelectedModel(modelConfig);
-    if (isCameraActive) {
-      startModel(modelConfig);
-    }
+    if (isCameraActive) startModel(modelConfig);
   };
 
-  useEffect(() => {
-    return () => stopCurrentCamera();
-  }, []);
+  useEffect(() => () => stopCurrentCamera(), [stopCurrentCamera]);
 
-  const getConfidenceColor = (probability: number) => {
-    if (probability >= 0.8) return '#10b981';
-    if (probability >= 0.5) return '#f59e0b';
-    return '#ef4444';
-  };
-
-  const totalPages = Math.ceil(savedPhotos.length / itemsPerPage) || 1;
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentPhotos = savedPhotos.slice(indexOfFirstItem, indexOfLastItem);
+  // Paginación calculada mediante Memo
+  const totalPages = useMemo(() => Math.ceil(savedPhotos.length / ITEMS_PER_PAGE) || 1, [savedPhotos.length]);
+  const currentPhotos = useMemo(
+    () => savedPhotos.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE),
+    [savedPhotos, currentPage]
+  );
 
   return (
     <div className="dashboard-container">
-      <h2 className="dashboard-title">Reconocimiento e Inteligencia Artificial</h2>
+      <header className="dashboard-header">
+        <h2 className="dashboard-title">Reconocimiento De Imagenes</h2>
+      </header>
 
       <div className="model-selector">
         {MODELS.map((m) => (
@@ -204,72 +218,42 @@ export default function Classifier() {
       <div className="classifier-grid">
         <div className="video-card">
           {!isCameraActive ? (
-            <button
-              className="action-btn"
-              onClick={() => startModel()}
-              disabled={isLoading}
-            >
+            <button className="action-btn" onClick={() => startModel()} disabled={isLoading}>
               {isLoading ? 'Cargando Modelo...' : `Iniciar ${selectedModel.name}`}
             </button>
           ) : (
             <button className="action-btn capture-btn" onClick={capturePhoto}>
-              📸 Tomar Foto
+              📸 Capturar Fotografía
             </button>
           )}
-
           <div ref={webcamRef} className="webcam-box" />
         </div>
 
         <div className="metrics-card">
-          <h3 className="metrics-title">Resultados en Tiempo Real</h3>
-
+          <h3 className="metrics-title">Análisis en Tiempo Real</h3>
           {predictions.length === 0 ? (
-            <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>
-              Inicia la cámara para ver el análisis de datos.
-            </p>
+            <p className="empty-state-text">Inicia la cámara para comenzar el análisis.</p>
           ) : (
-            predictions.map((p) => {
-              const percentage = (p.probability * 100).toFixed(1);
-              const barColor = getConfidenceColor(p.probability);
-
-              return (
-                <div key={p.className} className="prediction-item">
-                  <div className="prediction-header">
-                    <span className="prediction-name">{p.className}</span>
-                    <span className="prediction-value" style={{ color: barColor }}>
-                      {percentage}%
-                    </span>
-                  </div>
-                  <div className="progress-bar-bg">
-                    <div
-                      className="progress-bar-fill"
-                      style={{ width: `${percentage}%`, backgroundColor: barColor }}
-                    />
-                  </div>
-                </div>
-              );
-            })
+            <PredictionList predictions={predictions} />
           )}
         </div>
       </div>
 
       <div className="table-card">
         <div className="table-header-container">
-          <h3 className="metrics-title" style={{ margin: 0 }}>Historial de Fotos Capturadas</h3>
+          <h3 className="metrics-title">Historial de Capturas</h3>
           {savedPhotos.length > 0 && (
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <span className="total-badge">Total: {savedPhotos.length} fotos</span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <span className="total-badge">{savedPhotos.length} fotos</span>
               <button className="clear-btn" onClick={handleClearAll}>
-                🗑️ Limpiar Todo
+                🗑️ Limpiar Historial
               </button>
             </div>
           )}
         </div>
 
         {savedPhotos.length === 0 ? (
-          <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '12px' }}>
-            No se han capturado fotos aún. Haz clic en "Tomar Foto" mientras la cámara está activa.
-          </p>
+          <p className="empty-state-text">No hay capturas guardadas en esta sesión.</p>
         ) : (
           <>
             <table className="captures-table">
@@ -277,46 +261,64 @@ export default function Classifier() {
                 <tr>
                   <th>Vista Previa</th>
                   <th>Hora</th>
-                  <th>Modelo Usado</th>
-                  <th>Detección Principal</th>
+                  <th>Modelo</th>
+                  <th>Predicción Principal</th>
                   <th>Confianza</th>
-                  <th>Acciones</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody>
-                {currentPhotos.map((photo) => (
-                  <tr key={photo.id} onClick={() => setActiveModalPhoto(photo)} className="clickable-row">
-                    <td>
-                      <img src={photo.imageDataUrl} alt="Captura" className="table-img" />
-                    </td>
-                    <td>{photo.timestamp}</td>
-                    <td>{photo.modelName}</td>
-                    <td><strong>{photo.topClass}</strong></td>
-                    <td>
-                      <span className="confidence-pill" style={{ backgroundColor: `${getConfidenceColor(photo.topProbability)}22`, color: getConfidenceColor(photo.topProbability) }}>
-                        {(photo.topProbability * 100).toFixed(1)}%
-                      </span>
-                    </td>
-                    <td>
-                      <button className="delete-row-btn" onClick={(e) => handleDeletePhoto(photo.id, e)}>
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {currentPhotos.map((photo) => {
+                  const probColor = getConfidenceColor(photo.topProbability);
+                  return (
+                    <tr key={photo.id} onClick={() => setActiveModalPhoto(photo)} className="clickable-row">
+                      <td>
+                        <img src={photo.imageDataUrl} alt="Captura" className="table-img" />
+                      </td>
+                      <td>{photo.timestamp}</td>
+                      <td>{photo.modelName}</td>
+                      <td><strong>{photo.topClass}</strong></td>
+                      <td>
+                        <span
+                          className="total-badge"
+                          style={{
+                            backgroundColor: `${probColor}18`,
+                            color: probColor,
+                            borderColor: `${probColor}44`,
+                          }}
+                        >
+                          {(photo.topProbability * 100).toFixed(1)}%
+                        </span>
+                      </td>
+                      <td>
+                        <button className="delete-row-btn" onClick={(e) => handleDeletePhoto(photo.id, e)}>
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
             <div className="pagination-container">
-              <span className="pagination-info">
-                Página {currentPage} de {totalPages} (Mostrando {currentPhotos.length} de {savedPhotos.length})
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                Página {currentPage} de {totalPages} ({savedPhotos.length} registros)
               </span>
-              <div className="pagination-buttons">
-                <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))} disabled={currentPage === 1}>
-                  ◀ Anterior
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="pagination-btn"
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
                 </button>
-                <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))} disabled={currentPage >= totalPages}>
-                  Siguiente ▶
+                <button
+                  className="pagination-btn"
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  disabled={currentPage >= totalPages}
+                >
+                  Siguiente
                 </button>
               </div>
             </div>
@@ -327,35 +329,24 @@ export default function Classifier() {
       {activeModalPhoto && (
         <div className="modal-overlay" onClick={() => setActiveModalPhoto(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setActiveModalPhoto(null)}>✕</button>
+            <button className="modal-close" onClick={() => setActiveModalPhoto(null)}>
+              ✕
+            </button>
             <h3 className="metrics-title">Detalle de Captura</h3>
-            
+
             <div className="modal-body">
               <img src={activeModalPhoto.imageDataUrl} alt="Ampliada" className="modal-img" />
-              
-              <div className="modal-details">
-                <p><strong>Hora:</strong> {activeModalPhoto.timestamp}</p>
-                <p><strong>Modelo:</strong> {activeModalPhoto.modelName}</p>
-                <hr style={{ borderColor: '#1f2937', margin: '12px 0' }} />
-                
-                <h4 style={{ color: '#e5e7eb', marginBottom: '8px' }}>Desglose de Clases:</h4>
-                {activeModalPhoto.allPredictions.map((p) => (
-                  <div key={p.className} className="prediction-item">
-                    <div className="prediction-header">
-                      <span>{p.className}</span>
-                      <span>{(p.probability * 100).toFixed(1)}%</span>
-                    </div>
-                    <div className="progress-bar-bg">
-                      <div
-                        className="progress-bar-fill"
-                        style={{
-                          width: `${p.probability * 100}%`,
-                          backgroundColor: getConfidenceColor(p.probability)
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
+
+              <div style={{ flex: 1 }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  <strong>Hora:</strong> {activeModalPhoto.timestamp}
+                </p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '12px' }}>
+                  <strong>Modelo:</strong> {activeModalPhoto.modelName}
+                </p>
+
+                <h4 style={{ fontSize: '0.9rem', marginBottom: '8px' }}>Clasificación:</h4>
+                <PredictionList predictions={activeModalPhoto.allPredictions} />
               </div>
             </div>
           </div>
@@ -363,4 +354,4 @@ export default function Classifier() {
       )}
     </div>
   );
-}
+} 
