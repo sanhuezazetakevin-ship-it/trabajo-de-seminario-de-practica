@@ -51,14 +51,9 @@
    2. ESTRUCTURA & CONTENEDORES
    ========================================== */
 .dashboard-container {
-  padding: 24px 16px;
-  color: var(--text-primary);
-  max-width: 1280px;
-  margin: 0 auto;
-  font-family: 'Inter', system-ui, sans-serif;
-  background-color: var(--bg-main);
+  background-color: var(--bg-primary);
   min-height: 100vh;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  padding: 20px;
 }
 
 .dashboard-header {
@@ -69,10 +64,10 @@
 }
 
 .dashboard-title {
-  font-size: clamp(1.25rem, 2vw, 1.75rem);
-  font-weight: 800;
-  background: var(--title-gradient);
-  -webkit-text-fill-color: transparent;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
 }
 
 /* Botón Toggle de Tema */

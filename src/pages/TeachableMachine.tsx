@@ -200,7 +200,7 @@ export default function Classifier() {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <h2 className="dashboard-title">Reconocimiento e IA</h2>
+        <h2 className="dashboard-title">Reconocimiento De Imagenes</h2>
       </header>
 
       <div className="model-selector">
