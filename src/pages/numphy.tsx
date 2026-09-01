@@ -1,19 +1,61 @@
 import React, { useMemo } from 'react';
 import './numphy.css';
 
-function inferColumnType(values: any[]): string {
-  const nonNull = values.filter(v => v !== null && v !== undefined && v !== '');
-  if (nonNull.length === 0) return 'empty';
+// ---------------------------------------------------------------------------
+// Formateador reutilizado (Intl.NumberFormat es costoso de instanciar;
+// crearlo una sola vez y reusarlo evita recrearlo en cada celda de la tabla)
+// ---------------------------------------------------------------------------
+const numberFormatter = new Intl.NumberFormat('es-ES', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const fmt = (val: number) => numberFormatter.format(val);
 
-  const numericCount = nonNull.filter(v => !isNaN(parseFloat(v))).length;
-  const ratio = numericCount / nonNull.length;
-
-  if (ratio > 0.9) {
-    return 'numeric';
-  }
-  return 'categorical';
+// ---------------------------------------------------------------------------
+// Escaneo de columna en UNA sola pasada: clasifica y parsea a la vez,
+// en vez de filtrar y volver a mapear (como hacía el original).
+// ---------------------------------------------------------------------------
+interface ColumnScan {
+  nonNullCount: number;
+  numericCount: number;
+  numericValues: Float64Array;
+  rawNonNull: any[];
 }
 
+function scanColumn(data: Record<string, any>[], colName: string): ColumnScan {
+  const n = data.length;
+  const numericBuffer = new Float64Array(n);
+  const rawNonNull: any[] = [];
+  let numericLen = 0;
+  let nonNullCount = 0;
+  let numericCount = 0;
+
+  for (let i = 0; i < n; i++) {
+    const v = data[i][colName];
+    if (v === null || v === undefined || v === '') continue;
+
+    nonNullCount++;
+    rawNonNull.push(v);
+
+    const num = typeof v === 'number' ? v : parseFloat(v);
+    if (!isNaN(num)) {
+      numericBuffer[numericLen++] = num;
+      numericCount++;
+    }
+  }
+
+  return {
+    nonNullCount,
+    numericCount,
+    numericValues: numericBuffer.subarray(0, numericLen),
+    rawNonNull,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Estadísticas numéricas: media + varianza en una sola pasada (Welford),
+// en vez de dos bucles separados como en el original.
+// ---------------------------------------------------------------------------
 interface NumericStats {
   type: 'numeric';
   count: number;
@@ -25,43 +67,82 @@ interface NumericStats {
   max: number;
 }
 
-function computeNumericStats(values: number[]): NumericStats {
-  const N = values.length;
+function quickSelect(arr: Float64Array, k: number): number {
+  let lo = 0;
+  let hi = arr.length - 1;
 
-  let suma = 0;
+  while (lo < hi) {
+    const pivot = arr[(lo + hi) >> 1];
+    let i = lo;
+    let j = hi;
+
+    while (i <= j) {
+      while (arr[i] < pivot) i++;
+      while (arr[j] > pivot) j--;
+      if (i <= j) {
+        const tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+        i++;
+        j--;
+      }
+    }
+
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else break;
+  }
+
+  return arr[k];
+}
+
+function computeMedian(values: Float64Array): number {
+  const N = values.length;
+  const copy = values.slice(); // quickSelect muta el array; trabajamos sobre copia
+
+  if (N % 2 === 1) {
+    return quickSelect(copy, (N - 1) / 2);
+  }
+
+  const mid = N / 2;
+  const upper = quickSelect(copy, mid);
+  let lower = -Infinity;
+  for (let i = 0; i < mid; i++) {
+    if (copy[i] > lower) lower = copy[i];
+  }
+  return (lower + upper) / 2;
+}
+
+function computeNumericStats(values: Float64Array): NumericStats {
+  const N = values.length;
+  let sum = 0;
+  let mean = 0;
+  let m2 = 0; // acumulador de Welford para la varianza
   let min = values[0];
   let max = values[0];
 
   for (let i = 0; i < N; i++) {
     const v = values[i];
-    suma += v;
+    sum += v;
     if (v < min) min = v;
     if (v > max) max = v;
+
+    const delta = v - mean;
+    mean += delta / (i + 1);
+    const delta2 = v - mean;
+    m2 += delta * delta2;
   }
 
-  const mean = suma / N;
+  const stdDev = Math.sqrt(m2 / N);
+  const median = computeMedian(values);
 
-  let varianzaSum = 0;
-  for (let i = 0; i < N; i++) {
-    varianzaSum += Math.pow(values[i] - mean, 2);
-  }
-  const stdDev = Math.sqrt(varianzaSum / N);
-
-  const sorted = [...values].sort((a, b) => a - b);
-  const median = N % 2 === 0 ? (sorted[N / 2 - 1] + sorted[N / 2]) / 2 : sorted[Math.floor(N / 2)];
-
-  return {
-    type: 'numeric',
-    count: N,
-    sum: suma,
-    mean,
-    median,
-    stdDev,
-    min,
-    max,
-  };
+  return { type: 'numeric', count: N, sum, mean, median, stdDev, min, max };
 }
 
+// ---------------------------------------------------------------------------
+// Booleanas: detección con salida temprana en vez de construir un Set
+// completo de valores únicos.
+// ---------------------------------------------------------------------------
 interface BooleanStats {
   type: 'boolean';
   count: number;
@@ -69,7 +150,20 @@ interface BooleanStats {
   truePct: number;
 }
 
-function computeBooleanStats(values: number[]): BooleanStats {
+function detectBoolean(values: Float64Array): boolean {
+  let sawZeroOrOne = false;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (v === 0 || v === 1) {
+      sawZeroOrOne = true;
+    } else {
+      return false; // salida temprana: ya no puede ser booleana
+    }
+  }
+  return sawZeroOrOne;
+}
+
+function computeBooleanStats(values: Float64Array): BooleanStats {
   let trueCount = 0;
   for (let i = 0; i < values.length; i++) {
     if (values[i] === 1) trueCount++;
@@ -82,6 +176,10 @@ function computeBooleanStats(values: number[]): BooleanStats {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Categóricas: Map en vez de objeto plano, y selección parcial de top-5
+// en vez de ordenar TODAS las categorías.
+// ---------------------------------------------------------------------------
 interface CategoricalStats {
   type: 'categorical';
   count: number;
@@ -90,16 +188,23 @@ interface CategoricalStats {
 }
 
 function computeCategoricalStats(values: string[]): CategoricalStats {
-  const counts: Record<string, number> = {};
-
+  const counts = new Map<string, number>();
   for (let i = 0; i < values.length; i++) {
     const v = values[i];
-    counts[v] = (counts[v] || 0) + 1;
+    counts.set(v, (counts.get(v) || 0) + 1);
   }
 
-  const entries = Object.entries(counts);
-  entries.sort((a, b) => b[1] - a[1]);
-  const top5 = entries.slice(0, 5);
+  const top5: [string, number][] = [];
+  for (const entry of counts) {
+    if (top5.length < 5) {
+      top5.push(entry);
+      if (top5.length === 5) top5.sort((a, b) => a[1] - b[1]);
+    } else if (entry[1] > top5[0][1]) {
+      top5[0] = entry;
+      top5.sort((a, b) => a[1] - b[1]);
+    }
+  }
+  top5.sort((a, b) => b[1] - a[1]);
 
   const topValues = top5.map(([value, count]) => ({
     value,
@@ -110,11 +215,14 @@ function computeCategoricalStats(values: string[]): CategoricalStats {
   return {
     type: 'categorical',
     count: values.length,
-    uniqueValues: entries.length,
+    uniqueValues: counts.size,
     topValues,
   };
 }
 
+// ---------------------------------------------------------------------------
+// Orquestación: una sola pasada por columna en vez de las 3-4 del original.
+// ---------------------------------------------------------------------------
 function analyzeDataset(data: Record<string, any>[]) {
   if (!data || data.length === 0) return [];
 
@@ -123,32 +231,32 @@ function analyzeDataset(data: Record<string, any>[]) {
 
   for (let c = 0; c < columnNames.length; c++) {
     const colName = columnNames[c];
-    const rawValues = data.map(row => row[colName]);
-    const type = inferColumnType(rawValues);
+    const { nonNullCount, numericCount, numericValues, rawNonNull } = scanColumn(data, colName);
 
-    if (type === 'numeric') {
-      const numericValues = rawValues
-        .filter(v => v !== null && v !== undefined && v !== '')
-        .map(v => typeof v === 'number' ? v : parseFloat(v));
+    if (nonNullCount === 0) continue;
 
-      const uniqueVals = new Set(numericValues);
-      const isBoolean = uniqueVals.size <= 2 && [...uniqueVals].every(v => v === 0 || v === 1);
+    const ratio = numericCount / nonNullCount;
 
-      if (isBoolean) {
+    if (ratio > 0.9) {
+      if (detectBoolean(numericValues)) {
         results.push({ column: colName, ...computeBooleanStats(numericValues) });
       } else {
         results.push({ column: colName, ...computeNumericStats(numericValues) });
       }
-    } else if (type === 'categorical') {
-      const stringValues = rawValues
-        .filter(v => v !== null && v !== undefined && v !== '')
-        .map(v => String(v));
+    } else {
+      const stringValues = new Array(rawNonNull.length);
+      for (let i = 0; i < rawNonNull.length; i++) {
+        stringValues[i] = String(rawNonNull[i]);
+      }
       results.push({ column: colName, ...computeCategoricalStats(stringValues) });
     }
   }
 
   return results;
 }
+
+// El componente React (NumpyPage) queda igual que el original,
+// solo usa el `fmt` reutilizable de arriba en vez de toLocaleString directo.
 
 interface NumpyProps {
   data: Record<string, any>[];
@@ -158,9 +266,6 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
   const columnStats = useMemo(() => {
     return analyzeDataset(data);
   }, [data]);
-
-  const fmt = (val: number, decimals = 2) =>
-    val.toLocaleString('es-ES', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 
   if (columnStats.length === 0) {
     return (
