@@ -28,3 +28,12 @@
     0%, 100% { transform: scaleY(0.3); }
     50%      { transform: scaleY(1); }
 }
+
+.empty-state-text {
+    color: var(--text-muted, #6b7280);
+    font-size: 0.9rem;
+}
+
+.hero-actions {
+    flex-wrap: wrap;
+}
