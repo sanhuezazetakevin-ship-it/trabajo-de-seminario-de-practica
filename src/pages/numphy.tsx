@@ -255,8 +255,11 @@ function analyzeDataset(data: Record<string, any>[]) {
   return results;
 }
 
-// El componente React (NumpyPage) queda igual que el original,
-// solo usa el `fmt` reutilizable de arriba en vez de toLocaleString directo.
+// ---------------------------------------------------------------------------
+// Componente React. Los estilos inline del original ahora viven en
+// numphy.css (clases: numphy-header, numphy-title, numphy-subtitle,
+// numphy-empty, numphy-empty-title, numphy-empty-text, kpi-*, card, etc).
+// ---------------------------------------------------------------------------
 
 interface NumpyProps {
   data: Record<string, any>[];
@@ -270,21 +273,17 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
   if (columnStats.length === 0) {
     return (
       <div>
-        <div style={{ marginBottom: '2rem' }}>
-          <h2 style={{ color: 'var(--text-main)', fontSize: '1.6rem', marginBottom: '0.5rem' }}>
-            Métricas Cuantitativas (NumPy Engine)
-          </h2>
-          <p style={{ color: 'var(--text-muted)' }}>
+        <div className="numphy-header">
+          <h2 className="numphy-title">Métricas Cuantitativas (NumPy Engine)</h2>
+          <p className="numphy-subtitle">
             Evaluación matemática y estadística calculada dinámicamente sobre la muestra.
           </p>
         </div>
 
-        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+        <div className="card numphy-empty">
           <span className="tag-label">Dataset Requerido</span>
-          <h3 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>
-            No hay datos cargados en memoria
-          </h3>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', maxWidth: '500px', margin: '0 auto' }}>
+          <h3 className="numphy-empty-title">No hay datos cargados en memoria</h3>
+          <p className="numphy-empty-text">
             Por favor, dirígete a la pestaña <strong>Pandas (CSV)</strong> para seleccionar y cargar un archivo de datos.
           </p>
         </div>
@@ -294,11 +293,9 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
 
   return (
     <div>
-      <div style={{ marginBottom: '2rem' }}>
-        <h2 style={{ color: 'var(--text-main)', fontSize: '1.6rem', marginBottom: '0.5rem' }}>
-          Métricas Cuantitativas (NumPy Engine)
-        </h2>
-        <p style={{ color: 'var(--text-muted)' }}>
+      <div className="numphy-header">
+        <h2 className="numphy-title">Métricas Cuantitativas (NumPy Engine)</h2>
+        <p className="numphy-subtitle">
           Resumen descriptivo y matriz estadística avanzada computada en O(N).
         </p>
       </div>
@@ -319,12 +316,10 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
 
       {/* Matriz Cuantitativa Completa */}
       <div className="card">
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="card-header">
           <div>
             <span className="tag-label">Matriz Analítica</span>
-            <h3 style={{ color: 'var(--text-main)', fontSize: '1.2rem' }}>
-              Indicadores Cuantitativos Consolidados
-            </h3>
+            <h3>Indicadores Cuantitativos Consolidados</h3>
           </div>
         </div>
 
@@ -345,7 +340,7 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
                       <td><strong>{s.column}</strong> (numérica)</td>
                       <td>Media: {fmt(s.mean)} | Mediana: {fmt(s.median)}</td>
                       <td>
-                        <span style={{ color: 'var(--text-muted)' }}>
+                        <span className="numphy-subtitle">
                           Min: {fmt(s.min)} · Max: {fmt(s.max)} · StdDev: {fmt(s.stdDev)}
                         </span>
                       </td>
@@ -358,7 +353,7 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
                       <td><strong>{s.column}</strong> (booleana)</td>
                       <td>{s.truePct.toFixed(1)}% en verdadero</td>
                       <td>
-                        <span style={{ color: 'var(--text-muted)' }}>
+                        <span className="numphy-subtitle">
                           {s.trueCount} de {s.count} registros
                         </span>
                       </td>
@@ -371,7 +366,7 @@ export const NumpyPage: React.FC<NumpyProps> = ({ data }) => {
                       <td><strong>{s.column}</strong> (categórica)</td>
                       <td>{s.uniqueValues} valores únicos</td>
                       <td>
-                        <span style={{ color: 'var(--text-muted)' }}>
+                        <span className="numphy-subtitle">
                           Top: {s.topValues.map(t => `${t.value} (${t.pct.toFixed(0)}%)`).join(', ')}
                         </span>
                       </td>

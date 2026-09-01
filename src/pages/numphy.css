@@ -66,3 +66,99 @@
     grid-template-columns: 1fr;
   }
 }
+
+.numphy-header {
+  margin-bottom: 2rem;
+}
+
+.numphy-title {
+  color: var(--text-main);
+  font-size: 1.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.numphy-subtitle {
+  color: var(--text-muted);
+}
+
+/* --- Estado vacío (sin dataset cargado) --- */
+
+.numphy-empty {
+  text-align: center;
+  padding: 3rem;
+}
+
+.numphy-empty-title {
+  color: var(--text-main);
+  margin-bottom: 0.5rem;
+}
+
+.numphy-empty-text {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+/* --- Tarjeta contenedora (matriz analítica) --- */
+
+.card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.card-header h3 {
+  color: var(--text-main);
+  font-size: 1.2rem;
+}
+
+.tag-label {
+  display: inline-block;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.35rem;
+}
+
+/* --- Tabla de datos (base genérica; matrix-table ya tiene su th arriba) --- */
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+}
+
+.data-table th {
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.matrix-table td {
+  color: var(--text-main);
+  vertical-align: top;
+}
