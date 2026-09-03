@@ -6,17 +6,157 @@ type Prediction = { className: string; probability: number };
 type Capture = { id: string; time: string; image: string; top: Prediction };
 const URL = '/my_pose_model/';
 
+// Diccionario para cambiar los nombres del modelo a nombres legibles
+const LABEL_MAP: { [key: string]: string } = {
+  "Clase 1": "Brazo levantado",
+  "Clase 2": "Pose estándar",
+  // Si en tu modelo se llaman diferente (ej. "Class 1"), cámbialo aquí a la izquierda exactamente igual
+};
+
 export default function TeachableMachinePose() {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [captures, setCaptures] = useState<Capture[]>([]);
-  const [active, setActive] = useState(false); const [loading, setLoading] = useState(false);
-  const model = useRef<any>(null); const webcam = useRef<any>(null); const canvas = useRef<HTMLCanvasElement>(null); const raf = useRef<number | null>(null);
-  useEffect(() => { try { const saved = localStorage.getItem('pose_saved_photos'); if (saved) setCaptures(JSON.parse(saved)); } catch { /* historial opcional */ } return () => stop(); }, []);
-  useEffect(() => { localStorage.setItem('pose_saved_photos', JSON.stringify(captures.slice(0, 30))); }, [captures]);
-  const stop = () => { if (raf.current !== null) cancelAnimationFrame(raf.current); raf.current = null; webcam.current?.stop(); webcam.current = null; setActive(false); };
-  const loop = async () => { if (!webcam.current || !model.current || !canvas.current) return; webcam.current.update(); const result = await model.current.estimatePose(webcam.current.canvas); setPredictions(await model.current.predict(result.posenetOutput)); const ctx = canvas.current.getContext('2d'); if (ctx) { ctx.drawImage(webcam.current.canvas, 0, 0); if (result.pose) { tmPose.drawKeypoints(result.pose.keypoints, .5, ctx); tmPose.drawSkeleton(result.pose.keypoints, .5, ctx); } } raf.current = requestAnimationFrame(loop); };
-  const start = async () => { stop(); setLoading(true); try { model.current = await tmPose.load(`${URL}model.json`, `${URL}metadata.json`); webcam.current = new tmPose.Webcam(400, 400, true); await webcam.current.setup(); await webcam.current.play(); if (canvas.current) { canvas.current.width = 400; canvas.current.height = 400; } setActive(true); loop(); } catch (error) { console.error('Error al iniciar Pose:', error); } finally { setLoading(false); } };
-  const capture = () => { if (!canvas.current || !predictions.length) return; const top = [...predictions].sort((a, b) => b.probability - a.probability)[0]; setCaptures((old) => [{ id: crypto.randomUUID(), time: new Date().toLocaleString(), image: canvas.current!.toDataURL('image/jpeg', .75), top }, ...old].slice(0, 30)); };
+  const [active, setActive] = useState(false); 
+  const [loading, setLoading] = useState(false);
+  const model = useRef<any>(null); 
+  const webcam = useRef<any>(null); 
+  const canvas = useRef<HTMLCanvasElement>(null); 
+  const raf = useRef<number | null>(null);
+
+  useEffect(() => { 
+    try { 
+      const saved = localStorage.getItem('pose_saved_photos'); 
+      if (saved) setCaptures(JSON.parse(saved)); 
+    } catch { /* historial opcional */ } 
+    return () => stop(); 
+  }, []);
+
+  useEffect(() => { 
+    localStorage.setItem('pose_saved_photos', JSON.stringify(captures.slice(0, 30))); 
+  }, [captures]);
+
+  const stop = () => { 
+    if (raf.current !== null) cancelAnimationFrame(raf.current); 
+    raf.current = null; 
+    webcam.current?.stop(); 
+    webcam.current = null; 
+    setActive(false); 
+  };
+
+  const loop = async () => { 
+    if (!webcam.current || !model.current || !canvas.current) return; 
+    webcam.current.update(); 
+    const result = await model.current.estimatePose(webcam.current.canvas); 
+    const rawPredictions = await model.current.predict(result.posenetOutput);
+    
+    // Mapeamos las predicciones para cambiar los nombres antes de guardarlos en el estado
+    const mappedPredictions = rawPredictions.map((p: Prediction) => ({
+      ...p,
+      className: LABEL_MAP[p.className] || p.className // Si no está en el mapa, deja el original
+    }));
+
+    setPredictions(mappedPredictions); 
+
+    const ctx = canvas.current.getContext('2d'); 
+    if (ctx) { 
+      ctx.drawImage(webcam.current.canvas, 0, 0); 
+      if (result.pose) { 
+        tmPose.drawKeypoints(result.pose.keypoints, .5, ctx); 
+        tmPose.drawSkeleton(result.pose.keypoints, .5, ctx); 
+      } 
+    } 
+    raf.current = requestAnimationFrame(loop); 
+  };
+
+  const start = async () => { 
+    stop(); 
+    setLoading(true); 
+    try { 
+      model.current = await tmPose.load(`${URL}model.json`, `${URL}metadata.json`); 
+      webcam.current = new tmPose.Webcam(400, 400, true); 
+      await webcam.current.setup(); 
+      await webcam.current.play(); 
+      if (canvas.current) { 
+        canvas.current.width = 400; 
+        canvas.current.height = 400; 
+      } 
+      setActive(true); 
+      loop(); 
+    } catch (error) { 
+      console.error('Error al iniciar Pose:', error); 
+    } finally { 
+      setLoading(false); 
+    } 
+  };
+
+  const capture = () => { 
+    if (!canvas.current || !predictions.length) return; 
+    const top = [...predictions].sort((a, b) => b.probability - a.probability)[0]; 
+    setCaptures((old) => [{ 
+      id: crypto.randomUUID(), 
+      time: new Date().toLocaleString(), 
+      image: canvas.current!.toDataURL('image/jpeg', .75), 
+      top 
+    }, ...old].slice(0, 30)); 
+  };
+
   const color = (p: number) => p >= .8 ? '#10b981' : p >= .5 ? '#f59e0b' : '#ef4444';
-  return <div className="pose-page"><h2 className="dashboard-title">Reconocimiento de Posturas</h2><p className="pose-description">Modelo Pose entrenado con Teachable Machine. Colócate frente a la cámara para analizar tu postura.</p><div className="pose-grid"><div className="video-card"><div className="pose-actions"><button className="action-btn" onClick={active ? stop : start} disabled={loading}>{loading ? 'Cargando modelo…' : active ? 'Detener cámara' : 'Iniciar cámara'}</button>{active && <button className="action-btn capture-btn" onClick={capture}>📸 Tomar foto</button>}</div><canvas ref={canvas} className="pose-canvas" /></div><div className="metrics-card"><h3 className="metrics-title">Resultados en Tiempo Real</h3>{predictions.length ? predictions.map((p) => <div className="prediction-item" key={p.className}><div className="prediction-header"><span>{p.className}</span><strong style={{ color: color(p.probability) }}>{(p.probability * 100).toFixed(1)}%</strong></div><div className="progress-bar-bg"><div className="progress-bar-fill" style={{ width: `${p.probability * 100}%`, backgroundColor: color(p.probability) }} /></div></div>) : <p className="pose-muted">Inicia la cámara para ver las predicciones.</p>}</div></div><div className="table-card"><div className="table-header-container"><h3 className="metrics-title" style={{ margin: 0 }}>Historial de Capturas</h3>{captures.length > 0 && <button className="clear-btn" onClick={() => setCaptures([])}>🗑️ Limpiar todo</button>}</div>{captures.length === 0 ? <p className="pose-muted">Aún no hay capturas guardadas.</p> : <div className="pose-captures">{captures.map((c) => <article className="pose-capture" key={c.id}><img src={c.image} alt={`Captura ${c.top.className}`} /><div><strong>{c.top.className}</strong><span>{(c.top.probability * 100).toFixed(1)}% de confianza</span><small>{c.time}</small></div></article>)}</div>}</div></div>;
+
+  return (
+    <div className="pose-page">
+      <h2 className="dashboard-title">Reconocimiento de Posturas</h2>
+      <p className="pose-description">Modelo Pose entrenado con Teachable Machine. Colócate frente a la cámara para analizar tu postura.</p>
+      
+      <div className="pose-grid">
+        <div className="video-card">
+          <div className="pose-actions">
+            <button className="action-btn" onClick={active ? stop : start} disabled={loading}>
+              {loading ? 'Cargando modelo…' : active ? 'Detener cámara' : 'Iniciar cámara'}
+            </button>
+            {active && <button className="action-btn capture-btn" onClick={capture}>📸 Tomar foto</button>}
+          </div>
+          <canvas ref={canvas} className="pose-canvas" />
+        </div>
+
+        <div className="metrics-card">
+          <h3 className="metrics-title">Resultados en Tiempo Real</h3>
+          {predictions.length ? predictions.map((p) => (
+            <div className="prediction-item" key={p.className}>
+              <div className="prediction-header">
+                <span>{p.className}</span>
+                <strong style={{ color: color(p.probability) }}>{(p.probability * 100).toFixed(1)}%</strong>
+              </div>
+              <div className="progress-bar-bg">
+                <div className="progress-bar-fill" style={{ width: `${p.probability * 100}%`, backgroundColor: color(p.probability) }} />
+              </div>
+            </div>
+          )) : <p className="pose-muted">Inicia la cámara para ver las predicciones.</p>}
+        </div>
+      </div>
+
+      <div className="table-card">
+        <div className="table-header-container">
+          <h3 className="metrics-title" style={{ margin: 0 }}>Historial de Capturas</h3>
+          {captures.length > 0 && <button className="clear-btn" onClick={() => setCaptures([])}>🗑️ Limpiar todo</button>}
+        </div>
+        {captures.length === 0 ? (
+          <p className="pose-muted">Aún no hay capturas guardadas.</p>
+        ) : (
+          <div className="pose-captures">
+            {captures.map((c) => (
+              <article className="pose-capture" key={c.id}>
+                <img src={c.image} alt={`Captura ${c.top.className}`} />
+                <div>
+                  <strong>{c.top.className}</strong>
+                  <span>{(c.top.probability * 100).toFixed(1)}% de confianza</span>
+                  <small>{c.time}</small>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
+*** En caso este correo llegue a tu bandeja de entrada, fuera de tu jornada diaria laboral, deberás revisarlo al día hábil siguiente ***
